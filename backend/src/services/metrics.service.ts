@@ -26,6 +26,59 @@ export type AcquisitionMetrics = {
  * Acquisition + conversion metrics (leads table + users.config.lifecycle).
  */
 export class MetricsService {
+  /** Acquisition metrics scoped to `leads.business_id` and linked WhatsApp `users` (via `leads.user_id`). */
+  static async getAcquisitionForBusiness(businessId: string): Promise<AcquisitionMetrics> {
+    const agg = await pool.query<{
+      total_leads: string;
+      leads_onboarded: string;
+      leads_active: string;
+      leads_dropped: string;
+      users_onboarded: string;
+      users_active: string;
+      avg_hours: string | null;
+    }>(
+      `SELECT
+        (SELECT COUNT(*)::text FROM leads WHERE business_id = $1) AS total_leads,
+        (SELECT COUNT(*)::text FROM leads WHERE business_id = $1 AND status = 'onboarded') AS leads_onboarded,
+        (SELECT COUNT(*)::text FROM leads WHERE business_id = $1 AND status = 'active') AS leads_active,
+        (SELECT COUNT(*)::text FROM leads WHERE business_id = $1 AND status = 'dropped') AS leads_dropped,
+        (
+          SELECT COUNT(*)::text FROM users u
+          WHERE u.status = 'onboarded'
+            AND u.id IN (
+              SELECT DISTINCT user_id FROM leads WHERE business_id = $1 AND user_id IS NOT NULL
+            )
+        ) AS users_onboarded,
+        (
+          SELECT COUNT(*)::text FROM users u
+          WHERE u.status = 'active'
+            AND u.id IN (
+              SELECT DISTINCT user_id FROM leads WHERE business_id = $1 AND user_id IS NOT NULL
+            )
+        ) AS users_active,
+        (
+          SELECT AVG(
+            EXTRACT(
+              EPOCH FROM (
+                (u.config #>> '{lifecycle,user_activated_at}')::timestamptz
+                - (u.config #>> '{lifecycle,onboarding_created_at}')::timestamptz
+              )
+            ) / 3600.0
+          )::text
+          FROM users u
+          WHERE u.status = 'active'
+            AND u.id IN (
+              SELECT DISTINCT user_id FROM leads WHERE business_id = $1 AND user_id IS NOT NULL
+            )
+            AND (u.config #>> '{lifecycle,user_activated_at}') IS NOT NULL
+            AND (u.config #>> '{lifecycle,onboarding_created_at}') IS NOT NULL
+        ) AS avg_hours`,
+      [businessId],
+    );
+
+    return MetricsService.mapAcquisitionRow(agg.rows[0]);
+  }
+
   static async getAcquisition(): Promise<AcquisitionMetrics> {
     const agg = await pool.query<{
       total_leads: string;
@@ -59,7 +112,18 @@ export class MetricsService {
         ) AS avg_hours`,
     );
 
-    const row = agg.rows[0];
+    return MetricsService.mapAcquisitionRow(agg.rows[0]);
+  }
+
+  private static mapAcquisitionRow(row: {
+    total_leads: string;
+    leads_onboarded: string;
+    leads_active: string;
+    leads_dropped: string;
+    users_onboarded: string;
+    users_active: string;
+    avg_hours: string | null;
+  } | undefined): AcquisitionMetrics {
     const total_leads = Number(row?.total_leads ?? "0");
     const leads_onboarded = Number(row?.leads_onboarded ?? "0");
     const leads_active = Number(row?.leads_active ?? "0");

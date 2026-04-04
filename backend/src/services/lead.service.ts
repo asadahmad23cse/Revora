@@ -14,6 +14,7 @@ export type LeadStatus =
 export type IntentTag = "high_intent" | "low_intent";
 
 const LEAD_COLUMNS = `id, name, phone_number, source, status, intent_tag, notes, user_id,
+  business_id, email,
   last_contacted_at, next_followup_at, followup_count, created_at, updated_at`;
 
 export type LeadRow = {
@@ -25,12 +26,16 @@ export type LeadRow = {
   intent_tag: IntentTag | null;
   notes: string | null;
   user_id: string | null;
+  business_id: string | null;
+  email: string | null;
   last_contacted_at: Date | null;
   next_followup_at: Date | null;
   followup_count: number;
   created_at: Date;
   updated_at: Date;
 };
+
+export type LeadTenantAccess = { ok: true; lead: LeadRow } | { ok: false; reason: "not_found" | "forbidden" };
 
 type Db = Pool | PoolClient;
 
@@ -71,19 +76,30 @@ export class LeadService {
   /** Upsert by phone: landing onboard marks row onboarded and links user_id. */
   static async upsertFromOnboard(
     db: Db,
-    params: { userId: string; name: string; phone: string; source: LeadSource },
+    params: {
+      userId: string;
+      name: string;
+      phone: string;
+      source: LeadSource;
+      businessId?: string | null;
+      email?: string | null;
+    },
   ): Promise<{ leadId: string }> {
+    const businessId = params.businessId ?? null;
+    const email = params.email ?? null;
     const r = await db.query<{ id: string }>(
-      `INSERT INTO leads (name, phone_number, source, status, user_id)
-       VALUES ($1, $2, $3, 'onboarded', $4)
+      `INSERT INTO leads (name, phone_number, source, status, user_id, business_id, email)
+       VALUES ($1, $2, $3, 'onboarded', $4, $5, $6)
        ON CONFLICT (phone_number) DO UPDATE SET
          name = EXCLUDED.name,
          user_id = EXCLUDED.user_id,
          source = EXCLUDED.source,
          status = 'onboarded',
+         business_id = COALESCE(EXCLUDED.business_id, leads.business_id),
+         email = COALESCE(EXCLUDED.email, leads.email),
          updated_at = now()
        RETURNING id`,
-      [params.name.trim(), params.phone, params.source, params.userId],
+      [params.name.trim(), params.phone, params.source, params.userId, businessId, email],
     );
     const id = r.rows[0]?.id;
     if (!id) throw new Error("Lead upsert failed");
@@ -149,15 +165,15 @@ export class LeadService {
     return r.rows[0] ?? null;
   }
 
-  static async recordManualFollowup(leadId: string): Promise<LeadRow | null> {
+  static async recordManualFollowup(leadId: string, businessId: string): Promise<LeadRow | null> {
     const r = await pool.query<LeadRow>(
       `UPDATE leads SET
          last_contacted_at = now(),
          next_followup_at = now() + interval '24 hours',
          updated_at = now()
-       WHERE id = $1
+       WHERE id = $1 AND business_id = $2
        RETURNING ${LEAD_COLUMNS}`,
-      [leadId],
+      [leadId, businessId],
     );
     const row = r.rows[0] ?? null;
     if (row) {
@@ -166,9 +182,10 @@ export class LeadService {
     return row;
   }
 
-  static async findAll(): Promise<LeadRow[]> {
+  static async findAllForBusiness(businessId: string): Promise<LeadRow[]> {
     const r = await pool.query<LeadRow>(
-      `SELECT ${LEAD_COLUMNS} FROM leads ORDER BY created_at DESC`,
+      `SELECT ${LEAD_COLUMNS} FROM leads WHERE business_id = $1 ORDER BY created_at DESC`,
+      [businessId],
     );
     return r.rows;
   }
@@ -181,8 +198,25 @@ export class LeadService {
     return r.rows[0] ?? null;
   }
 
-  static async patchById(
+  /** Resolves a lead for a tenant: 404 vs 403 vs row. */
+  static async resolveLeadForTenant(leadId: string, businessId: string): Promise<LeadTenantAccess> {
+    const r = await pool.query<LeadRow>(
+      `SELECT ${LEAD_COLUMNS} FROM leads WHERE id = $1`,
+      [leadId],
+    );
+    const row = r.rows[0];
+    if (!row) {
+      return { ok: false, reason: "not_found" };
+    }
+    if (row.business_id !== businessId) {
+      return { ok: false, reason: "forbidden" };
+    }
+    return { ok: true, lead: row };
+  }
+
+  static async patchByIdForBusiness(
     id: string,
+    businessId: string,
     patch: { status?: LeadStatus; notes?: string | null; intent_tag?: IntentTag | null },
   ): Promise<LeadRow | null> {
     const sets: string[] = ["updated_at = now()"];
@@ -203,12 +237,13 @@ export class LeadService {
     }
 
     if (vals.length === 0) {
-      return LeadService.findById(id);
+      const access = await LeadService.resolveLeadForTenant(id, businessId);
+      return access.ok ? access.lead : null;
     }
 
-    vals.push(id);
+    vals.push(id, businessId);
     const r = await pool.query<LeadRow>(
-      `UPDATE leads SET ${sets.join(", ")} WHERE id = $${i}
+      `UPDATE leads SET ${sets.join(", ")} WHERE id = $${i} AND business_id = $${i + 1}
        RETURNING ${LEAD_COLUMNS}`,
       vals,
     );

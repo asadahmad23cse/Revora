@@ -2,13 +2,25 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod";
 import { pool } from "../db/pool";
 import { logger } from "../utils/logger";
-import type { LeadRow } from "../services/lead.service";
+import { requireAuth } from "../middlewares/requireAuth";
+import { LeadService, type LeadRow } from "../services/lead.service";
 
 const leadsRouter = Router();
 
+leadsRouter.use(requireAuth);
+
 type LeadListRow = Pick<
   LeadRow,
-  "id" | "name" | "phone_number" | "source" | "status" | "followup_count" | "next_followup_at" | "created_at"
+  | "id"
+  | "name"
+  | "phone_number"
+  | "source"
+  | "status"
+  | "followup_count"
+  | "next_followup_at"
+  | "created_at"
+  | "business_id"
+  | "email"
 >;
 
 type LeadMessageRow = {
@@ -23,13 +35,21 @@ const uuidParam = z.object({
   id: z.string().uuid(),
 });
 
-const LIST_SQL = `SELECT id, name, phone_number, source, status, followup_count, next_followup_at, created_at
-  FROM leads ORDER BY created_at DESC`;
-
-/** Returns all leads for the admin dashboard (newest first). */
-leadsRouter.get("/leads", async (_req: Request, res: Response, next: NextFunction) => {
+/** GET /api/leads — tenant-scoped (JWT). */
+leadsRouter.get("/leads", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const r = await pool.query<LeadListRow>(LIST_SQL);
+    const businessId = req.businessId;
+    if (!businessId) {
+      res.status(401).json({ error: "Unauthorized", code: "unauthorized" });
+      return;
+    }
+    const r = await pool.query<LeadListRow>(
+      `SELECT id, name, phone_number, source, status, followup_count, next_followup_at, created_at, business_id, email
+       FROM leads
+       WHERE business_id = $1
+       ORDER BY created_at DESC`,
+      [businessId],
+    );
     res.status(200).json({ leads: r.rows });
   } catch (e) {
     logger.error({ err: e }, "GET /api/leads failed");
@@ -37,13 +57,22 @@ leadsRouter.get("/leads", async (_req: Request, res: Response, next: NextFunctio
   }
 });
 
-/** Returns simulated / manual messages for a lead, oldest first. */
+/** GET /api/leads/:id/messages */
 leadsRouter.get("/leads/:id/messages", async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const businessId = req.businessId;
+    if (!businessId) {
+      res.status(401).json({ error: "Unauthorized", code: "unauthorized" });
+      return;
+    }
     const { id } = uuidParam.parse(req.params);
-    const exists = await pool.query<{ one: number }>(`SELECT 1 AS one FROM leads WHERE id = $1 LIMIT 1`, [id]);
-    if (exists.rows.length === 0) {
-      res.status(404).json({ error: "Lead not found", code: "lead_not_found" });
+    const access = await LeadService.resolveLeadForTenant(id, businessId);
+    if (!access.ok) {
+      if (access.reason === "not_found") {
+        res.status(404).json({ error: "Lead not found", code: "lead_not_found" });
+        return;
+      }
+      res.status(403).json({ error: "Lead does not belong to this business", code: "forbidden" });
       return;
     }
     const r = await pool.query<LeadMessageRow>(
@@ -60,22 +89,25 @@ leadsRouter.get("/leads/:id/messages", async (req: Request, res: Response, next:
   }
 });
 
-/** Returns one lead by id. */
+/** GET /api/leads/:id */
 leadsRouter.get("/leads/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = uuidParam.parse(req.params);
-    const r = await pool.query<LeadRow>(
-      `SELECT id, name, phone_number, source, status, intent_tag, notes, user_id,
-              last_contacted_at, next_followup_at, followup_count, created_at, updated_at
-       FROM leads WHERE id = $1`,
-      [id],
-    );
-    const row = r.rows[0];
-    if (!row) {
-      res.status(404).json({ error: "Lead not found", code: "lead_not_found" });
+    const businessId = req.businessId;
+    if (!businessId) {
+      res.status(401).json({ error: "Unauthorized", code: "unauthorized" });
       return;
     }
-    res.status(200).json({ lead: row });
+    const { id } = uuidParam.parse(req.params);
+    const access = await LeadService.resolveLeadForTenant(id, businessId);
+    if (!access.ok) {
+      if (access.reason === "not_found") {
+        res.status(404).json({ error: "Lead not found", code: "lead_not_found" });
+        return;
+      }
+      res.status(403).json({ error: "Lead does not belong to this business", code: "forbidden" });
+      return;
+    }
+    res.status(200).json({ lead: access.lead });
   } catch (e) {
     next(e);
   }

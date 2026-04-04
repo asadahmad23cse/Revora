@@ -14,6 +14,8 @@ export class OnboardService {
     name: string;
     phone: string;
     source: LeadSource;
+    authBusinessId?: string | null;
+    email?: string | null;
   }): Promise<{ userId: string }> {
     const phone = UserService.normalizePhone(params.phone);
     const name = params.name.trim();
@@ -60,6 +62,8 @@ export class OnboardService {
         name,
         phone,
         source: params.source,
+        businessId: params.authBusinessId ?? null,
+        email: params.email ?? null,
       });
 
       await client.query("COMMIT");

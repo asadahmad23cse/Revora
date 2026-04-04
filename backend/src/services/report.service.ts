@@ -30,6 +30,19 @@ function startOfWindow(now: Date, window: ReportWindow): Date {
 }
 
 export class ReportService {
+  /** Maps `businesses.id` to WhatsApp tenant `users.id` when `phone_number` matches. */
+  static async resolveWhatsAppUserIdForBusiness(businessId: string): Promise<string | null> {
+    const r = await pool.query<{ id: string }>(
+      `SELECT u.id
+       FROM businesses b
+       INNER JOIN users u ON u.phone_number = b.phone_number
+       WHERE b.id = $1
+       LIMIT 1`,
+      [businessId],
+    );
+    return r.rows[0]?.id ?? null;
+  }
+
   /** True when an outgoing WhatsApp with the 14d report marker already exists for today (Asia/Kolkata). */
   private static async was14DayReportWhatsAppSentToday(userId: string): Promise<boolean> {
     const r = await pool.query<{ one: number }>(

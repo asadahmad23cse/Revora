@@ -7,8 +7,9 @@ declare global {
       rawBody?: Buffer;
       /** Correlation id (from `x-request-id` or generated) */
       id?: string;
-      /** Set by `requireAuth` when Authorization: Bearer <JWT> is valid */
+      /** Auth user (`auth_users.id`) when JWT is present */
       userId?: string;
+      /** Tenant (`businesses.id`) when JWT is present */
       businessId?: string;
     }
   }

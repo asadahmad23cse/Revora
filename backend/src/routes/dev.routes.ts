@@ -35,9 +35,27 @@ devRouter.post("/simulate-message", async (req: Request, res: Response, next: Ne
       return;
     }
     const { phone, text, businessId } = parsed.data;
-    const user = await UserService.getById(businessId);
+    const bizRow = await pool.query<{ phone_number: string | null }>(
+      `SELECT phone_number FROM businesses WHERE id = $1 LIMIT 1`,
+      [businessId],
+    );
+    if (bizRow.rows.length === 0) {
+      res.status(404).json({ error: "business not found", code: "business_not_found" });
+      return;
+    }
+    const rawBizPhone = bizRow.rows[0]?.phone_number?.trim();
+    if (!rawBizPhone) {
+      res.status(400).json({
+        error: "Business has no phone_number; set it at registration or update businesses.",
+        code: "business_phone_missing",
+      });
+      return;
+    }
+    const normalizedBizPhone = UserService.normalizePhone(rawBizPhone);
+    const upserted = await UserService.upsertByPhone(normalizedBizPhone);
+    const user = await UserService.getById(upserted.id);
     if (!user) {
-      res.status(404).json({ error: "businessId not found" });
+      res.status(404).json({ error: "WhatsApp user not found for business phone", code: "user_not_found" });
       return;
     }
     const messageId = `sim_${randomUUID()}`;
