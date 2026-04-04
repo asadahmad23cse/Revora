@@ -69,6 +69,9 @@ export const config = {
 
   /** BullMQ repeatable job: scan leads due for follow-up */
   leadFollowupScanIntervalMs: env.LEAD_FOLLOWUP_SCAN_INTERVAL_MS,
+
+  /** Groq Cloud (optional; AI follow-up copy in /ai/generate-message) */
+  groqApiKey: (env.GROQ_API_KEY ?? "").trim(),
 } as const;
 
 export function isTestSimulateApiEnabled(): boolean {

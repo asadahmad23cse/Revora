@@ -7,6 +7,7 @@ import { UserService } from "../services/user.service";
 import { ReportQueue } from "../queues/report.queue";
 import { tryDeliverPlainTextWhatsApp } from "../services/whatsapp";
 import { getQueueMetricsSnapshot } from "../queues/metrics";
+import { pool } from "../db/pool";
 
 const devRouter = Router();
 
@@ -144,6 +145,200 @@ devRouter.get("/queue-status", async (_req: Request, res: Response, next: NextFu
       active: sum("active"),
       failed: sum("failed"),
       completed: sum("completed"),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+type DemoLeadSeed = {
+  name: string;
+  phone: string;
+  source: "whatsapp" | "instagram" | "manual";
+  status: string;
+  followup_count: number;
+  next_followup_at: Date | null;
+};
+
+/** Removes prior Demo:* leads and inserts 10 fixed demo rows (upsert by phone). */
+devRouter.post("/seed-demo", async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    await pool.query(`DELETE FROM leads WHERE name LIKE 'Demo:%'`);
+    const now = Date.now();
+    const offset = (ms: number) => new Date(now + ms);
+    const demoLeads: DemoLeadSeed[] = [
+      {
+        name: "Demo: Kavita Sharma",
+        phone: "919811001001",
+        source: "whatsapp",
+        status: "new",
+        followup_count: 0,
+        next_followup_at: offset(60 * 60 * 1000),
+      },
+      {
+        name: "Demo: Rahul Mehta",
+        phone: "919811001002",
+        source: "instagram",
+        status: "contacted",
+        followup_count: 1,
+        next_followup_at: offset(-30 * 60 * 1000),
+      },
+      {
+        name: "Demo: Priya Catering",
+        phone: "919811001003",
+        source: "whatsapp",
+        status: "contacted",
+        followup_count: 2,
+        next_followup_at: offset(-2 * 60 * 60 * 1000),
+      },
+      {
+        name: "Demo: Arjun Tiffins",
+        phone: "919811001004",
+        source: "manual",
+        status: "onboarded",
+        followup_count: 1,
+        next_followup_at: offset(-1 * 60 * 60 * 1000),
+      },
+      {
+        name: "Demo: Sunita Kitchen",
+        phone: "919811001005",
+        source: "instagram",
+        status: "onboarded",
+        followup_count: 3,
+        next_followup_at: offset(3 * 60 * 60 * 1000),
+      },
+      {
+        name: "Demo: Mohan Foods",
+        phone: "919811001006",
+        source: "whatsapp",
+        status: "interested",
+        followup_count: 2,
+        next_followup_at: offset(6 * 60 * 60 * 1000),
+      },
+      {
+        name: "Demo: Anita Home Chef",
+        phone: "919811001007",
+        source: "instagram",
+        status: "trial",
+        followup_count: 4,
+        next_followup_at: offset(12 * 60 * 60 * 1000),
+      },
+      {
+        name: "Demo: Vikram Cloud Kit",
+        phone: "919811001008",
+        source: "manual",
+        status: "active",
+        followup_count: 5,
+        next_followup_at: offset(24 * 60 * 60 * 1000),
+      },
+      {
+        name: "Demo: Fatima Biryani",
+        phone: "919811001009",
+        source: "whatsapp",
+        status: "dropped",
+        followup_count: 2,
+        next_followup_at: null,
+      },
+      {
+        name: "Demo: Ravi Sweets",
+        phone: "919811001010",
+        source: "instagram",
+        status: "trial",
+        followup_count: 3,
+        next_followup_at: offset(-3 * 60 * 60 * 1000),
+      },
+    ];
+
+    for (const d of demoLeads) {
+      await pool.query(
+        `INSERT INTO leads (name, phone_number, source, status, followup_count, next_followup_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, now())
+         ON CONFLICT (phone_number) DO UPDATE SET
+           name = EXCLUDED.name,
+           source = EXCLUDED.source,
+           status = EXCLUDED.status,
+           followup_count = EXCLUDED.followup_count,
+           next_followup_at = EXCLUDED.next_followup_at,
+           updated_at = now()`,
+        [d.name, d.phone, d.source, d.status, d.followup_count, d.next_followup_at],
+      );
+    }
+
+    res.status(200).json({ success: true, created: 10 });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** Simulates the follow-up worker for due leads (contacted, onboarded, trial) with staged messages. */
+devRouter.post("/run-worker", async (_req: Request, res: Response, next: NextFunction) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const upd = await client.query<{ id: string; name: string; followup_count: number }>(
+      `UPDATE leads SET
+         followup_count = followup_count + 1,
+         next_followup_at = now() + interval '24 hours',
+         last_contacted_at = now(),
+         updated_at = now()
+       WHERE next_followup_at IS NOT NULL
+         AND next_followup_at <= now()
+         AND status IN ('contacted', 'onboarded', 'trial')
+       RETURNING id, name, followup_count`,
+    );
+
+    const leadsOut: { id: string; name: string; followup_count: number }[] = [];
+    for (const row of upd.rows) {
+      const content = `Auto follow-up #${row.followup_count} sent to ${row.name}`;
+      await client.query(
+        `INSERT INTO lead_messages (lead_id, content, status, source)
+         VALUES ($1, $2, 'sent (simulated)', 'worker_auto')`,
+        [row.id, content],
+      );
+      leadsOut.push({ id: row.id, name: row.name, followup_count: row.followup_count });
+    }
+    await client.query("COMMIT");
+    res.status(200).json({ processed: leadsOut.length, leads: leadsOut });
+  } catch (e) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      /* ignore */
+    }
+    next(e);
+  } finally {
+    client.release();
+  }
+});
+
+const leadSendBody = z.object({
+  lead_id: z.string().uuid(),
+  content: z.string().min(1),
+});
+
+/** Appends a manual simulated message to `lead_messages` for a lead. */
+devRouter.post("/send-message", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = leadSendBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() });
+      return;
+    }
+    const { lead_id, content } = parsed.data;
+    const ex = await pool.query<{ id: string }>(`SELECT id FROM leads WHERE id = $1`, [lead_id]);
+    if (ex.rows.length === 0) {
+      res.status(404).json({ error: "Lead not found", code: "lead_not_found" });
+      return;
+    }
+    await pool.query(
+      `INSERT INTO lead_messages (lead_id, content, status, source)
+       VALUES ($1, $2, 'sent (simulated)', 'manual')`,
+      [lead_id, content],
+    );
+    res.status(200).json({
+      success: true,
+      status: "sent (simulated)",
+      timestamp: new Date().toISOString(),
     });
   } catch (e) {
     next(e);

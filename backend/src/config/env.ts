@@ -52,6 +52,8 @@ const EnvSchema = z.object({
 
   TEST_MODE: z.string().optional(),
   ALLOW_TEST_SIMULATE_API: z.string().optional(),
+
+  GROQ_API_KEY: z.string().optional(),
 });
 
 /** Validates process.env at import; throws before the HTTP server or workers start. */
