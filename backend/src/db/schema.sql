@@ -15,6 +15,25 @@ CREATE TABLE users (
 
 CREATE INDEX idx_users_config_gin ON users USING gin (config jsonb_path_ops);
 
+CREATE TABLE auth_users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_auth_users_email ON auth_users (email);
+
+CREATE TABLE businesses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  owner_user_id UUID NOT NULL REFERENCES auth_users (id) ON DELETE CASCADE,
+  phone_number TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_businesses_owner_user_id ON businesses (owner_user_id);
+
 CREATE TABLE leads (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
@@ -26,6 +45,8 @@ CREATE TABLE leads (
   intent_tag VARCHAR(32) CHECK (intent_tag IS NULL OR intent_tag IN ('high_intent', 'low_intent')),
   notes TEXT,
   user_id UUID REFERENCES users (id) ON DELETE SET NULL,
+  business_id UUID REFERENCES businesses (id) ON DELETE SET NULL,
+  email TEXT,
   last_contacted_at TIMESTAMPTZ,
   next_followup_at TIMESTAMPTZ,
   followup_count INTEGER NOT NULL DEFAULT 0,
@@ -38,6 +59,7 @@ CREATE INDEX idx_leads_user_id ON leads (user_id);
 CREATE INDEX idx_leads_status ON leads (status);
 CREATE INDEX idx_leads_created_at ON leads (created_at DESC);
 CREATE INDEX idx_leads_next_followup ON leads (next_followup_at) WHERE next_followup_at IS NOT NULL;
+CREATE INDEX idx_leads_business_id ON leads (business_id);
 
 CREATE TABLE messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

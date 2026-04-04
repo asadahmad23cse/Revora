@@ -72,6 +72,9 @@ export const config = {
 
   /** Groq Cloud (optional; AI follow-up copy in /ai/generate-message) */
   groqApiKey: (env.GROQ_API_KEY ?? "").trim(),
+
+  /** JWT signing (7d expiry for api/auth) */
+  jwtSecret: env.JWT_SECRET,
 } as const;
 
 export function isTestSimulateApiEnabled(): boolean {

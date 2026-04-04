@@ -11,6 +11,7 @@ import { adminApiRouter } from "./routes/admin.routes";
 import { leadsRouter } from "./routes/leads.routes";
 import { aiRouter } from "./routes/ai.routes";
 import { devRouter } from "./routes/dev.routes";
+import { authRouter } from "./routes/auth.routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import { logger } from "./utils/logger";
 import { requestIdMiddleware } from "./middlewares/requestId";
@@ -51,6 +52,7 @@ export function createApp(): express.Application {
   if (config.nodeEnv === "development") {
     app.use("/dev", devRouter);
   }
+  app.use("/api/auth", authRouter);
   app.use("/api", onboardApiRouter);
   app.use("/api", leadsRouter);
   app.use("/api", adminApiRouter);

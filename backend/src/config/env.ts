@@ -54,6 +54,15 @@ const EnvSchema = z.object({
   ALLOW_TEST_SIMULATE_API: z.string().optional(),
 
   GROQ_API_KEY: z.string().optional(),
+
+  /** HS256 secret for POST /api/auth/register + /api/auth/login tokens */
+  JWT_SECRET: z.preprocess(
+    (v) =>
+      v === undefined || v === ""
+        ? "revora-super-secret-key-change-in-prod"
+        : v,
+    z.string().min(1),
+  ),
 });
 
 /** Validates process.env at import; throws before the HTTP server or workers start. */
