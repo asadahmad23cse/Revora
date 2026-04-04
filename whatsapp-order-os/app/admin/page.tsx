@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthGuard } from "@/components/AuthGuard";
-import { apiFetch, clearAuth } from "@/lib/auth";
+import { SendMessageModal } from "@/components/SendMessageModal";
+import { apiFetch, clearAuth, getBusinessId } from "@/lib/auth";
 
 type LeadRow = {
   id: string;
@@ -15,6 +16,13 @@ type LeadRow = {
   followup_count: number;
   next_followup_at: string | null;
   created_at: string;
+};
+
+type Report14 = {
+  totalRiskyMessages?: number;
+  totalEstimatedRevenueAtRiskInr?: string;
+  averageResponseTimeSeconds?: number | null;
+  summary?: string;
 };
 
 function businessTypeLabel(source: string): string {
@@ -52,6 +60,19 @@ function formatNextFollowup(iso: string | null): string {
   return rtf.format(Math.round(diff / 86400000), "day");
 }
 
+function ReportSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="glass h-24 animate-pulse rounded-xl border border-white/10 bg-white/5 p-5" />
+        ))}
+      </div>
+      <div className="glass h-28 animate-pulse rounded-xl border border-white/10 bg-white/5" />
+    </div>
+  );
+}
+
 export default function AdminDashboardPage() {
   return (
     <AuthGuard>
@@ -66,6 +87,56 @@ function AdminDashboardInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workerBanner, setWorkerBanner] = useState<string | null>(null);
+  const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const [reportLoading, setReportLoading] = useState(true);
+  const [reportData, setReportData] = useState<Report14 | null>(null);
+  const [reportUnavailable, setReportUnavailable] = useState(false);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const bid = getBusinessId();
+      if (!bid) {
+        if (alive) {
+          setReportUnavailable(true);
+          setReportLoading(false);
+        }
+        return;
+      }
+      setReportLoading(true);
+      setReportUnavailable(false);
+      try {
+        const res = await apiFetch(`/reports/14days?userId=${encodeURIComponent(bid)}`);
+        if (!alive) return;
+        if (!res.ok) {
+          setReportData(null);
+          setReportUnavailable(true);
+          return;
+        }
+        const data = (await res.json()) as Report14;
+        setReportData(data);
+        setReportUnavailable(false);
+      } catch {
+        if (alive) {
+          setReportData(null);
+          setReportUnavailable(true);
+        }
+      } finally {
+        if (alive) setReportLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const loadLeads = useCallback(async () => {
     setError(null);
@@ -96,7 +167,8 @@ function AdminDashboardInner() {
     const due = leads.filter((l) => l.next_followup_at && new Date(l.next_followup_at).getTime() <= now).length;
     const active = leads.filter((l) => l.status === "active").length;
     const dropped = leads.filter((l) => l.status === "dropped").length;
-    return { total, due, active, dropped };
+    const conversionRate = total === 0 ? "0.0%" : `${((active / total) * 100).toFixed(1)}%`;
+    return { total, due, active, dropped, conversionRate };
   }, [leads]);
 
   function handleLogout() {
@@ -130,6 +202,13 @@ function AdminDashboardInner() {
     }
   }
 
+  const risky = reportData?.totalRiskyMessages ?? 0;
+  const revenueInr = reportData?.totalEstimatedRevenueAtRiskInr ?? "0";
+  const avgSec = reportData?.averageResponseTimeSeconds;
+  const avgMinutes =
+    avgSec != null && Number.isFinite(avgSec) ? (avgSec / 60).toFixed(2) : null;
+  const summaryText = reportData?.summary?.trim() ?? "";
+
   return (
     <div className="min-h-screen p-6 md:p-10">
       <header className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -155,19 +234,56 @@ function AdminDashboardInner() {
         </p>
       ) : null}
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {[
-          { label: "Total Leads", value: stats.total },
-          { label: "Follow-ups Due", value: stats.due },
-          { label: "Active Leads", value: stats.active },
-          { label: "Dropped Leads", value: stats.dropped },
+          { label: "Total Leads", value: stats.total.toLocaleString("en-IN") },
+          { label: "Follow-ups Due", value: stats.due.toLocaleString("en-IN") },
+          { label: "Active Leads", value: stats.active.toLocaleString("en-IN") },
+          { label: "Dropped Leads", value: stats.dropped.toLocaleString("en-IN") },
+          { label: "Conversion Rate", value: stats.conversionRate },
         ].map((s) => (
           <div key={s.label} className="glass rounded-xl border border-white/10 p-5">
             <p className="text-xs uppercase tracking-wider text-slate-400">{s.label}</p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums text-white">{s.value.toLocaleString("en-IN")}</p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums text-white">{s.value}</p>
           </div>
         ))}
       </div>
+
+      <section className="mb-10">
+        <h2 className="mb-4 text-lg font-semibold text-white">14-Day Revenue Report</h2>
+        {reportLoading ? (
+          <ReportSkeleton />
+        ) : reportUnavailable || !reportData ? (
+          <div className="glass rounded-xl border border-white/10 px-5 py-8 text-center text-sm text-slate-400">
+            No report data yet
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="glass rounded-xl border border-white/10 p-5">
+                <p className="text-xs uppercase tracking-wider text-slate-400">Messages at Risk</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-white">{risky.toLocaleString("en-IN")}</p>
+              </div>
+              <div className="glass rounded-xl border border-white/10 p-5">
+                <p className="text-xs uppercase tracking-wider text-slate-400">Revenue at Risk</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-white">
+                  ₹{Number(revenueInr).toLocaleString("en-IN")}
+                </p>
+              </div>
+              <div className="glass rounded-xl border border-white/10 p-5">
+                <p className="text-xs uppercase tracking-wider text-slate-400">Avg Response Time</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-white">
+                  {avgMinutes != null ? `${avgMinutes} min` : "—"}
+                </p>
+              </div>
+            </div>
+            <div className="glass mt-4 rounded-xl border border-white/10 p-5">
+              <p className="text-xs uppercase tracking-wider text-slate-400">Summary</p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-200">{summaryText || "—"}</p>
+            </div>
+          </>
+        )}
+      </section>
 
       <div className="mb-10 flex flex-wrap gap-3">
         <button type="button" className="btn-primary rounded-lg px-5 py-2.5 text-sm font-medium" onClick={() => void handleLoadDemo()}>
@@ -176,7 +292,29 @@ function AdminDashboardInner() {
         <button type="button" className="btn-ghost rounded-lg px-5 py-2.5 text-sm font-medium" onClick={() => void handleRunFollowups()}>
           Run Follow-ups
         </button>
+        <button
+          type="button"
+          className="rounded-lg border border-[#00ff88]/50 bg-transparent px-5 py-2.5 text-sm font-medium text-[#00ff88] transition hover:bg-[#00ff88]/10"
+          onClick={() => setSendModalOpen(true)}
+        >
+          Send Message
+        </button>
       </div>
+
+      <SendMessageModal
+        open={sendModalOpen}
+        onClose={() => setSendModalOpen(false)}
+        onSuccess={() => setToast("Message queued!")}
+      />
+
+      {toast ? (
+        <div
+          className="fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl border border-[#00ff88]/40 bg-[#0a1628]/95 px-5 py-3 text-sm text-[#00ff88] shadow-lg backdrop-blur-md"
+          role="status"
+        >
+          {toast}
+        </div>
+      ) : null}
 
       <div className="glass overflow-hidden rounded-xl border border-white/10">
         <div className="overflow-x-auto">

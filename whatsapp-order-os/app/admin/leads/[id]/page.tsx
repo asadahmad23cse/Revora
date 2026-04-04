@@ -50,6 +50,8 @@ export default function AdminLeadDetailPage() {
   );
 }
 
+type ToastState = { kind: "ok" | "err"; message: string } | null;
+
 function AdminLeadDetailInner() {
   const router = useRouter();
   const params = useParams();
@@ -62,7 +64,7 @@ function AdminLeadDetailInner() {
   const [textarea, setTextarea] = useState("");
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
-  const [banner, setBanner] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -97,10 +99,33 @@ function AdminLeadDetailInner() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const loadMessages = useCallback(async () => {
+    if (!id) return;
+    try {
+      const mr = await apiFetch(`/api/leads/${id}/messages`);
+      if (mr.status === 401) {
+        clearAuth();
+        router.replace("/login");
+        return;
+      }
+      if (!mr.ok) return;
+      const mj: { messages?: LeadMsg[] } = await mr.json();
+      setMessages(mj.messages ?? []);
+    } catch {
+      /* ignore */
+    }
+  }, [id, router]);
+
   async function handleGenerate() {
     if (!lead) return;
     setGenerating(true);
-    setBanner(null);
+    setToast(null);
     try {
       const res = await apiFetch("/ai/generate-message", {
         method: "POST",
@@ -114,7 +139,7 @@ function AdminLeadDetailInner() {
       const data: { message?: string } = await res.json();
       setTextarea(data.message ?? "");
     } catch {
-      setBanner("Could not generate message.");
+      setToast({ kind: "err", message: "Could not generate message." });
     } finally {
       setGenerating(false);
     }
@@ -123,7 +148,7 @@ function AdminLeadDetailInner() {
   async function handleSend() {
     if (!lead || !textarea.trim()) return;
     setSending(true);
-    setBanner(null);
+    setToast(null);
     const content = textarea.trim();
     const optimistic: LeadMsg = {
       id: `temp-${Date.now()}`,
@@ -141,22 +166,21 @@ function AdminLeadDetailInner() {
       });
       if (!res.ok) {
         setMessages((m) => m.filter((x) => x.id !== optimistic.id));
-        setBanner("Send failed. Dev API must be running with NODE_ENV=development.");
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+        setToast({
+          kind: "err",
+          message:
+            typeof errBody.error === "string"
+              ? errBody.error
+              : "Send failed. Dev API must be running with NODE_ENV=development.",
+        });
         return;
       }
-      const data: { timestamp?: string } = await res.json();
-      setBanner("Message sent (simulated)");
-      if (data.timestamp) {
-        setMessages((m) =>
-          m.map((x) =>
-            x.id === optimistic.id ? { ...x, created_at: data.timestamp ?? x.created_at } : x,
-          ),
-        );
-      }
-      void load();
+      setToast({ kind: "ok", message: "Message sent (simulated)" });
+      await loadMessages();
     } catch {
       setMessages((m) => m.filter((x) => x.id !== optimistic.id));
-      setBanner("Send failed.");
+      setToast({ kind: "err", message: "Send failed." });
     } finally {
       setSending(false);
     }
@@ -203,8 +227,17 @@ function AdminLeadDetailInner() {
         </button>
       </div>
 
-      {banner ? (
-        <p className="glass-green mb-6 rounded-xl border border-emerald-500/30 px-4 py-3 text-sm text-emerald-200">{banner}</p>
+      {toast ? (
+        <div
+          className={`fixed bottom-6 left-1/2 z-[100] max-w-md -translate-x-1/2 rounded-xl border px-5 py-3 text-sm shadow-lg backdrop-blur-md ${
+            toast.kind === "ok"
+              ? "border-[#00ff88]/40 bg-[#0a1628]/95 text-[#00ff88]"
+              : "border-red-500/40 bg-[#0a1628]/95 text-red-300"
+          }`}
+          role="status"
+        >
+          {toast.message}
+        </div>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
