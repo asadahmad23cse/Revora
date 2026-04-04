@@ -19,7 +19,14 @@ export function createApp(): express.Application {
   const app = express();
 
   app.disable("x-powered-by");
-  app.use(cors({ origin: "http://localhost:3000" }));
+  app.use(
+    cors({
+      origin:
+        config.nodeEnv === "development"
+          ? ["http://localhost:3000", "http://127.0.0.1:3000"]
+          : "http://localhost:3000",
+    }),
+  );
   app.use(helmet());
   app.use(requestIdMiddleware);
 

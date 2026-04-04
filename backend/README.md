@@ -33,7 +33,7 @@ Use `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/revora` and `RED
 - **Webhook HMAC** — verifies raw JSON body using `WEBHOOK_APP_SECRET` (Meta/WhatsApp style `X-Hub-Signature-256: sha256=<hex>`), optional `X-Revora-Signature`, or `webhook-signature: v1,<base64>` digest. **401** when invalid. Dev default `WEBHOOK_SKIP_SIGNATURE_VERIFY=true` — turn off in production.
 - **Idempotency** — Redis `SET NX` per `wa_message_id` plus Postgres `UNIQUE(wa_message_id)`; duplicate webhooks return `deduplicated` counts and skip enqueue.
 - **Conversation lock** — Redis lock per `(user_id, customer_phone)` so ingest/risk workers serialize side-effects for the same thread.
-- **Retries / DLQ** — shared BullMQ exponential backoff + `QUEUE_MAX_ATTEMPTS`; exhausted jobs recorded on **`revora:dead-letter`** with `failedReason` + payload snapshot.
+- **Retries / DLQ** — shared BullMQ exponential backoff + `QUEUE_MAX_ATTEMPTS`; exhausted jobs recorded on **`revora-dead-letter`** with `failedReason` + payload snapshot.
 - **Per-user config** — `users.config` JSONB: `{ "aov_inr", "response_threshold_seconds" }` (**preferred**). Headers `X-AOV-INR` / `X-Response-Threshold-Seconds` apply only when DB omits those keys.
 - **Rate limits** — Redis-backed `express-rate-limit`; tighter limits on `POST /webhook`; `/health` exempt from global limiter.
 - **Payloads** — WhatsApp `text`, `interactive` (button/list reply titles), `button`; skips unsupported types, messages with `errors`, and Cloud messages missing `id`.
@@ -147,7 +147,7 @@ curl -s -X POST http://localhost:8080/webhook \
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/webhook` | Ingest Cloud/360dialog payloads or `{ simulate: true, ... }` (sync response with counts) |
-| `POST` | `/webhook/whatsapp` | Same as `/webhook` but **200 immediately**; ingest + `revora:message-ingest` run async (configure 360dialog callback here) |
+| `POST` | `/webhook/whatsapp` | Same as `/webhook` but **200 immediately**; ingest + `revora-message-ingest` run async (configure 360dialog callback here) |
 | `POST` | `/api/onboard` | Landing signup; optional body `source`: `instagram` \| `whatsapp` \| `manual` (default `manual`); creates/updates `users` + `leads` + funnel `config.lifecycle` |
 | `GET` | `/api/leads` | List acquisition leads (optional `ADMIN_API_KEY` → `X-Admin-Key`) |
 | `PATCH` | `/api/leads/:id` | Update lead `status` (`new`…`dropped`), `notes`, `intent_tag` |
@@ -162,7 +162,7 @@ curl -s -X POST http://localhost:8080/webhook \
 - **Controllers** parse/validate inputs only.  
 - **Services** own business rules (`WebhookService`, `MessageService`, `ResponseTrackingService`, `RiskService`, `LeakService`, `ReportService`).  
 - **Middlewares** — `middlewares/` (`webhookSignature`, rate limits, `requestId`, errors).  
-- **Queues** — `revora:message-ingest`, `revora:risk-evaluation`, `revora:leak-calculation`, `revora:report-generation`, **`revora:dead-letter`**.  
+- **Queues** — `revora-message-ingest`, `revora-risk-evaluation`, `revora-leak-calculation`, `revora-report-generation`, **`revora-dead-letter`**.  
 - Webhook **raw body** route verifies HMAC, parses JSON, then persists + **enqueue** ingest (non-blocking).
 
 ## Railway

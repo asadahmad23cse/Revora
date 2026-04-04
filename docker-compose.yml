@@ -1,4 +1,13 @@
 # Local development: PostgreSQL + Redis only (API runs on the host via `npm run dev` in `backend/`).
+#
+# Typical flow (4 terminals):
+#   1) repo root:  docker compose up -d     →  docker ps (2 containers)
+#   2) backend:     npm run migrate:schema    (first time / empty DB)
+#                   npm run migrate           (additive migrations, incl. lead_messages)
+#   3) backend:     npm run dev            →  log: Revora API listening on port 8080
+#   4) whatsapp-order-os:  npm run dev     →  http://localhost:3000
+# Health: http://127.0.0.1:8080/health
+#
 services:
   postgres:
     image: postgres:15
@@ -9,7 +18,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: revora
     ports:
-      - "5432:5432"
+      # Host 5433 avoids clashing with a local PostgreSQL install on 5432 (Windows/macOS)
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -24,7 +34,8 @@ services:
     container_name: revora-redis
     restart: always
     ports:
-      - "6379:6379"
+      # Host 6380 avoids clashing with an older local Redis (e.g. 3.x) on 6379
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

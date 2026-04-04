@@ -40,7 +40,10 @@ async function main(): Promise<void> {
   httpServer = createServer(app);
 
   httpServer.listen(config.port, () => {
-    logger.info({ port: config.port, env: config.nodeEnv }, "Revora API listening");
+    logger.info(
+      { port: config.port, env: config.nodeEnv },
+      `Revora API listening on port ${config.port}`,
+    );
   });
 
   process.on("SIGINT", () => void shutdown("SIGINT"));

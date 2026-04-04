@@ -48,7 +48,7 @@ export async function POST(req: Request) {
         code: "upstream_unreachable",
         ...(isDev && {
           hint:
-            `Expected API base: ${base} (set REVORA_BACKEND_URL in whatsapp-order-os/.env.local if different). From repo root run: cd backend && npm run dev — needs DATABASE_URL and REDIS_URL in backend/.env.`,
+            `Expected API base: ${base} (set REVORA_BACKEND_URL in whatsapp-order-os/.env.local if different). Start the API: cd backend && npm run dev — it must keep running. Check http://127.0.0.1:8080/health in your browser; if it does not load, the server is not up (fix DATABASE_URL, REDIS_URL, and all required vars in backend/.env — see backend/.env.example). Restart Next after changing .env.local.`,
         }),
       },
       { status: 502 },

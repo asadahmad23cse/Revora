@@ -1,6 +1,7 @@
 -- Early-user acquisition + CRM lite
+-- Idempotent: `schema.sql` (migrate:schema) may already create `leads` with newer columns.
 
-CREATE TABLE leads (
+CREATE TABLE IF NOT EXISTS leads (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   phone_number VARCHAR(32) NOT NULL,
@@ -14,8 +15,8 @@ CREATE TABLE leads (
   CONSTRAINT leads_phone_number_key UNIQUE (phone_number)
 );
 
-CREATE INDEX idx_leads_user_id ON leads (user_id);
-CREATE INDEX idx_leads_status ON leads (status);
-CREATE INDEX idx_leads_created_at ON leads (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_user_id ON leads (user_id);
+CREATE INDEX IF NOT EXISTS idx_leads_status ON leads (status);
+CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads (created_at DESC);
 
 COMMENT ON TABLE leads IS 'Inbound acquisition; one row per phone; synced to users on /api/onboard.';
