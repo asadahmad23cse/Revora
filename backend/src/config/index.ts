@@ -43,8 +43,13 @@ export const config = {
   responseThresholdSeconds: optionalNumber("RESPONSE_THRESHOLD_SECONDS", 300),
 
   webhookVerifyToken: process.env.WEBHOOK_VERIFY_TOKEN ?? "",
-  /** Meta / WhatsApp Cloud: App Secret — used for X-Hub-Signature-256 */
+  /** Meta / WhatsApp Cloud: App Secret — used for X-Hub-Signature-256 (360dialog uses same header) */
   webhookAppSecret: (process.env.WEBHOOK_APP_SECRET ?? process.env.DIALOG360_WEBHOOK_SECRET ?? "").trim(),
+
+  /** 360dialog / Cloud API: WABA outbound auth (d360-api-key) — optional until send path is used */
+  threeSixtyDialogApiKey: (process.env.THREESIXTY_DIALOG_API_KEY ?? "").trim(),
+  /** Partner API token (future); optional */
+  threeSixtyDialogPartnerToken: (process.env.THREESIXTY_DIALOG_PARTNER_TOKEN ?? "").trim(),
   /** When true, signature verification is skipped (development / staging only). */
   webhookSkipSignatureVerify: optionalBool("WEBHOOK_SKIP_SIGNATURE_VERIFY", nodeEnv !== "production"),
   /** Allow `{ simulate: true }` payloads without HMAC when verification is enabled */

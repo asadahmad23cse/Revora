@@ -146,7 +146,8 @@ curl -s -X POST http://localhost:8080/webhook \
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/webhook` | Ingest 360dialog-shaped payloads or `{ simulate: true, ... }` |
+| `POST` | `/webhook` | Ingest Cloud/360dialog payloads or `{ simulate: true, ... }` (sync response with counts) |
+| `POST` | `/webhook/whatsapp` | Same as `/webhook` but **200 immediately**; ingest + `revora:message-ingest` run async (configure 360dialog callback here) |
 | `POST` | `/api/onboard` | Landing signup; optional body `source`: `instagram` \| `whatsapp` \| `manual` (default `manual`); creates/updates `users` + `leads` + funnel `config.lifecycle` |
 | `GET` | `/api/leads` | List acquisition leads (optional `ADMIN_API_KEY` → `X-Admin-Key`) |
 | `PATCH` | `/api/leads/:id` | Update lead `status` (`new`…`dropped`), `notes`, `intent_tag` |

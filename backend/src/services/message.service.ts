@@ -24,6 +24,16 @@ export class MessageService {
    * Idempotent on wa_message_id when provided.
    * Returns { id, inserted }.
    */
+  /** True if this WhatsApp delivery id was already stored (idempotency / fast dedup). */
+  static async waMessageExists(waMessageId: string, client?: DbExecutor): Promise<boolean> {
+    const db = client ?? pool;
+    const r = await db.query<{ one: number }>(
+      `SELECT 1 AS one FROM messages WHERE wa_message_id = $1 LIMIT 1`,
+      [waMessageId],
+    );
+    return r.rows.length > 0;
+  }
+
   static async insertMessage(input: InsertMessageInput, client?: DbExecutor): Promise<{ id: string; inserted: boolean }> {
     const db = client ?? pool;
     const phone = MessageService.normalizePhone(input.customerPhone);

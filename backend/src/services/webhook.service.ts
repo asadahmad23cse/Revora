@@ -110,6 +110,13 @@ function resolveBusinessPhone(params: {
   );
 }
 
+type WaMediaShape = {
+  image?: { caption?: string };
+  document?: { caption?: string; filename?: string };
+  audio?: { id?: string };
+  voice?: { id?: string };
+};
+
 function extractCloudMessageText(msg: WaMessage): string | null {
   if (msg.errors && msg.errors.length > 0) {
     return null;
@@ -128,6 +135,21 @@ function extractCloudMessageText(msg: WaMessage): string | null {
   }
   if (t === "button") {
     return msg.text?.body ?? null;
+  }
+  const m = msg as WaMessage & WaMediaShape;
+  if (t === "image") {
+    const c = m.image?.caption?.trim();
+    return c && c.length > 0 ? c : "[image]";
+  }
+  if (t === "document") {
+    const c = m.document?.caption?.trim();
+    if (c && c.length > 0) return c;
+    const fn = m.document?.filename?.trim();
+    if (fn && fn.length > 0) return `[document: ${fn}]`;
+    return "[document]";
+  }
+  if (t === "audio" || t === "voice") {
+    return "[audio]";
   }
   return null;
 }
@@ -162,7 +184,28 @@ function normalizeCloudMessage(params: {
     return null;
   }
 
-  const text = extractCloudMessageText(msg);
+  let text = extractCloudMessageText(msg);
+  const t = msg.type?.toLowerCase() ?? "";
+  const supported =
+    t === "text" ||
+    t === "" ||
+    t === "interactive" ||
+    t === "button" ||
+    t === "image" ||
+    t === "document" ||
+    t === "audio" ||
+    t === "voice";
+  if (!supported) {
+    logger.info({ type: t, waMsgId: msg.id }, "Unsupported WhatsApp message type; skipping ingest");
+    return null;
+  }
+  if (text === null && (t === "text" || t === "")) {
+    logger.info({ waMsgId: msg.id }, "Text message without body; skipping");
+    return null;
+  }
+  if (text === null) {
+    text = `[${t || "message"}]`;
+  }
   const ts = parseTimestamp(msg.timestamp);
   return {
     waMessageId: msg.id ?? null,
@@ -221,12 +264,6 @@ export class WebhookService {
         skipped += 1;
         continue;
       }
-      const t = msg.type?.toLowerCase() ?? "text";
-      if (t !== "text" && t !== "interactive" && t !== "button" && t !== "") {
-        logger.debug({ type: t, waMsgId: msg.id }, "Skipping unsupported message type");
-        skipped += 1;
-        continue;
-      }
       try {
         const businessPhone = resolveBusinessPhone({
           headerPhone: params.businessPhoneHeader,
@@ -265,6 +302,14 @@ export class WebhookService {
     headerFallback: { aovInr?: number; thresholdSeconds?: number },
   ): Promise<"inserted" | "duplicate_redis" | "duplicate_db"> {
     if (normalized.waMessageId) {
+      const existsAlready = await MessageService.waMessageExists(normalized.waMessageId);
+      if (existsAlready) {
+        logger.info(
+          { waMessageId: normalized.waMessageId },
+          "Webhook delivery id already stored; skipping duplicate ingest",
+        );
+        return "duplicate_db";
+      }
       const claimed = await IdempotencyService.tryClaimWaDelivery(normalized.waMessageId);
       if (!claimed) {
         return "duplicate_redis";
