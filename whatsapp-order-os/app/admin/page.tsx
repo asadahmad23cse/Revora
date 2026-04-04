@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-
-const API = "http://localhost:8080";
+import { useRouter } from "next/navigation";
+import { AuthGuard } from "@/components/AuthGuard";
+import { apiFetch, clearAuth } from "@/lib/auth";
 
 type LeadRow = {
   id: string;
@@ -52,6 +53,15 @@ function formatNextFollowup(iso: string | null): string {
 }
 
 export default function AdminDashboardPage() {
+  return (
+    <AuthGuard>
+      <AdminDashboardInner />
+    </AuthGuard>
+  );
+}
+
+function AdminDashboardInner() {
+  const router = useRouter();
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +70,12 @@ export default function AdminDashboardPage() {
   const loadLeads = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch(`${API}/api/leads`);
+      const res = await apiFetch("/api/leads");
+      if (res.status === 401) {
+        clearAuth();
+        router.replace("/login");
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: { leads?: LeadRow[] } = await res.json();
       setLeads(data.leads ?? []);
@@ -69,7 +84,7 @@ export default function AdminDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     void loadLeads();
@@ -84,10 +99,15 @@ export default function AdminDashboardPage() {
     return { total, due, active, dropped };
   }, [leads]);
 
+  function handleLogout() {
+    clearAuth();
+    router.push("/login");
+  }
+
   async function handleLoadDemo() {
     setError(null);
     try {
-      const res = await fetch(`${API}/dev/seed-demo`, { method: "POST" });
+      const res = await apiFetch("/dev/seed-demo", { method: "POST" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await loadLeads();
     } catch {
@@ -99,7 +119,7 @@ export default function AdminDashboardPage() {
     setWorkerBanner(null);
     setError(null);
     try {
-      const res = await fetch(`${API}/dev/run-worker`, { method: "POST" });
+      const res = await apiFetch("/dev/run-worker", { method: "POST" });
       const data: { processed?: number; leads?: { name: string; followup_count: number }[] } = await res.json();
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const n = data.processed ?? 0;
@@ -116,9 +136,14 @@ export default function AdminDashboardPage() {
         <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
           <span className="gradient-text">Revora Admin</span>
         </h1>
-        <span className="glass-green w-fit rounded-full border border-emerald-500/40 px-3 py-1 text-xs font-medium text-emerald-300">
-          Demo Mode
-        </span>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <span className="glass-green w-fit rounded-full border border-emerald-500/40 px-3 py-1 text-xs font-medium text-emerald-300">
+            Demo Mode
+          </span>
+          <button type="button" className="btn-ghost rounded-lg px-4 py-2 text-xs font-medium" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
       </header>
 
       {error ? (
@@ -176,7 +201,7 @@ export default function AdminDashboardPage() {
               ) : leads.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                    No leads yet. Load demo data to populate.
+                    No leads yet. Load demo data or complete onboarding for this business.
                   </td>
                 </tr>
               ) : (

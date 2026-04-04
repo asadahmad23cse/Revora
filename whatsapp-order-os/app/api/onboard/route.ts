@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 
-function parseBody(body: unknown): { name: string; phone: string } | null {
-  if (!body || typeof body !== "object") return null;
+function validateOnboardBody(body: unknown): body is Record<string, unknown> & { name: string; phone: string } {
+  if (!body || typeof body !== "object") return false;
   const o = body as Record<string, unknown>;
   const name = typeof o.name === "string" ? o.name.trim() : "";
   const phone = typeof o.phone === "string" ? o.phone.trim() : "";
   if (!name || name.length > 200 || !phone || phone.length < 8 || phone.length > 24) {
-    return null;
+    return false;
   }
-  return { name, phone };
+  return true;
 }
 
 export async function POST(req: Request) {
@@ -19,8 +19,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON", code: "invalid_json" }, { status: 400 });
   }
 
-  const parsed = parseBody(raw);
-  if (!parsed) {
+  if (!validateOnboardBody(raw)) {
     return NextResponse.json(
       { error: "Invalid request", code: "validation_error" },
       { status: 400 },
@@ -29,12 +28,18 @@ export async function POST(req: Request) {
 
   const base = (process.env.REVORA_BACKEND_URL ?? "http://127.0.0.1:8080").replace(/\/$/, "");
   const upstreamUrl = `${base}/api/onboard`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const auth = req.headers.get("authorization");
+  if (auth) {
+    headers.Authorization = auth;
+  }
+
   let res: Response;
   try {
     res = await fetch(upstreamUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(parsed),
+      headers,
+      body: JSON.stringify(raw),
       cache: "no-store",
     });
   } catch (err) {

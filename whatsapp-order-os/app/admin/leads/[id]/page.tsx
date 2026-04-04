@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-
-const API = "http://localhost:8080";
+import { useParams, useRouter } from "next/navigation";
+import { AuthGuard } from "@/components/AuthGuard";
+import { apiFetch, clearAuth } from "@/lib/auth";
 
 type LeadDetail = {
   id: string;
@@ -43,6 +43,15 @@ function sourceTagClass(source: string): string {
 }
 
 export default function AdminLeadDetailPage() {
+  return (
+    <AuthGuard>
+      <AdminLeadDetailInner />
+    </AuthGuard>
+  );
+}
+
+function AdminLeadDetailInner() {
+  const router = useRouter();
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : "";
 
@@ -60,11 +69,13 @@ export default function AdminLeadDetailPage() {
     setLoading(true);
     setNotFound(false);
     try {
-      const [lr, mr] = await Promise.all([
-        fetch(`${API}/api/leads/${id}`),
-        fetch(`${API}/api/leads/${id}/messages`),
-      ]);
-      if (lr.status === 404) {
+      const [lr, mr] = await Promise.all([apiFetch(`/api/leads/${id}`), apiFetch(`/api/leads/${id}/messages`)]);
+      if (lr.status === 401 || mr.status === 401) {
+        clearAuth();
+        router.replace("/login");
+        return;
+      }
+      if (lr.status === 404 || lr.status === 403) {
         setNotFound(true);
         setLead(null);
         setMessages([]);
@@ -80,7 +91,7 @@ export default function AdminLeadDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, router]);
 
   useEffect(() => {
     void load();
@@ -91,7 +102,7 @@ export default function AdminLeadDetailPage() {
     setGenerating(true);
     setBanner(null);
     try {
-      const res = await fetch(`${API}/ai/generate-message`, {
+      const res = await apiFetch("/ai/generate-message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -123,7 +134,7 @@ export default function AdminLeadDetailPage() {
     };
     setMessages((m) => [...m, optimistic]);
     try {
-      const res = await fetch(`${API}/dev/send-message`, {
+      const res = await apiFetch("/dev/send-message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lead_id: lead.id, content }),
@@ -138,9 +149,7 @@ export default function AdminLeadDetailPage() {
       if (data.timestamp) {
         setMessages((m) =>
           m.map((x) =>
-            x.id === optimistic.id
-              ? { ...x, created_at: data.timestamp ?? x.created_at }
-              : x,
+            x.id === optimistic.id ? { ...x, created_at: data.timestamp ?? x.created_at } : x,
           ),
         );
       }
@@ -153,6 +162,11 @@ export default function AdminLeadDetailPage() {
     }
   }
 
+  function handleLogout() {
+    clearAuth();
+    router.push("/login");
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6 text-slate-400">Loading…</div>
@@ -161,11 +175,16 @@ export default function AdminLeadDetailPage() {
 
   if (notFound || !lead) {
     return (
-      <div className="p-8">
-        <p className="text-slate-400">Lead not found.</p>
-        <Link href="/admin" className="btn-ghost mt-4 inline-block rounded-lg px-4 py-2 text-sm">
-          Back to dashboard
-        </Link>
+      <div className="min-h-screen p-8">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <Link href="/admin" className="btn-ghost inline-block rounded-lg px-4 py-2 text-sm">
+            Back to dashboard
+          </Link>
+          <button type="button" className="btn-ghost rounded-lg px-4 py-2 text-xs" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
+        <p className="text-slate-400">Lead not found or you don&apos;t have access.</p>
       </div>
     );
   }
@@ -175,10 +194,13 @@ export default function AdminLeadDetailPage() {
 
   return (
     <div className="min-h-screen p-6 md:p-10">
-      <div className="mb-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link href="/admin" className="btn-ghost inline-flex rounded-lg px-3 py-1.5 text-xs text-slate-400">
           ← Dashboard
         </Link>
+        <button type="button" className="btn-ghost rounded-lg px-4 py-2 text-xs font-medium" onClick={handleLogout}>
+          Logout
+        </button>
       </div>
 
       {banner ? (
@@ -217,9 +239,7 @@ export default function AdminLeadDetailPage() {
           </div>
           <div>
             <p className="text-xs uppercase tracking-wider text-slate-500">Next follow-up</p>
-            <p className="text-slate-200">
-              {lead.next_followup_at ? relativeTime(lead.next_followup_at) : "—"}
-            </p>
+            <p className="text-slate-200">{lead.next_followup_at ? relativeTime(lead.next_followup_at) : "—"}</p>
           </div>
         </div>
 
