@@ -132,11 +132,23 @@ export function registerWorkers(): void {
   const report = new Worker(
     QUEUE_REPORT_GENERATION,
     async (job) => {
+      const trigger = job.data.trigger;
       const reportResult = await ReportService.generate(job.data);
       logger.info(
-        { userId: reportResult.userId, window: reportResult.window, summary: reportResult.summary },
+        {
+          userId: reportResult.userId,
+          window: reportResult.window,
+          trigger,
+          summary: reportResult.summary,
+        },
         "Report job completed",
       );
+      if (trigger === "auto_first_incoming_threshold") {
+        logger.info(
+          { userId: reportResult.userId, window: reportResult.window },
+          "First report generated automatically after inbound message threshold",
+        );
+      }
     },
     { connection: redisConnection, concurrency: 4 },
   );

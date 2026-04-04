@@ -10,7 +10,7 @@ const querySchema = z.object({
 export async function getDailyReport(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { userId } = querySchema.parse(req.query);
-    void ReportQueue.enqueueReport({ userId, window: "daily" });
+    void ReportQueue.enqueueReport({ userId, window: "daily", trigger: "manual_api" });
     const report = await ReportService.generate({ userId, window: "daily" });
     res.json(report);
   } catch (e) {
@@ -21,7 +21,7 @@ export async function getDailyReport(req: Request, res: Response, next: NextFunc
 export async function get14DayReport(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { userId } = querySchema.parse(req.query);
-    void ReportQueue.enqueueReport({ userId, window: "14days" });
+    void ReportQueue.enqueueReport({ userId, window: "14days", trigger: "manual_api" });
     const report = await ReportService.generate({ userId, window: "14days" });
     res.json(report);
   } catch (e) {

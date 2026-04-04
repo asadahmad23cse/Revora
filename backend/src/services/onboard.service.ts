@@ -14,11 +14,27 @@ export class OnboardService {
       throw new HttpError(400, "Invalid phone number", "invalid_phone");
     }
     const r = await pool.query<{ id: string }>(
-      `INSERT INTO users (phone_number, display_name)
-       VALUES ($1, $2)
+      `INSERT INTO users (phone_number, display_name, status, config)
+       VALUES (
+         $1, $2, 'onboarded',
+         jsonb_build_object(
+           'onboarding',
+           jsonb_build_object('connection_pending', true, 'onboarded_at', to_jsonb(now()))
+         )
+       )
        ON CONFLICT (phone_number) DO UPDATE SET
          display_name = COALESCE(EXCLUDED.display_name, users.display_name),
-         phone_number = EXCLUDED.phone_number
+         phone_number = EXCLUDED.phone_number,
+         status = CASE WHEN users.status = 'active' THEN users.status ELSE 'onboarded' END,
+         config = CASE
+           WHEN users.status = 'active' THEN users.config
+           ELSE users.config
+             || jsonb_build_object(
+                  'onboarding',
+                  COALESCE(users.config->'onboarding', '{}'::jsonb)
+                    || jsonb_build_object('connection_pending', true, 'onboarded_at', to_jsonb(now()))
+                )
+         END
        RETURNING id`,
       [phone, name],
     );
@@ -26,7 +42,10 @@ export class OnboardService {
     if (!row) {
       throw new HttpError(500, "Onboard insert failed", "onboard_failed");
     }
-    logger.info({ userId: row.id, phone }, "Owner onboarded from landing");
+    logger.info(
+      { userId: row.id, phone, status: "onboarded", connectionPending: true },
+      "Onboarding created; WhatsApp connection simulated as pending until first inbound message",
+    );
     return { userId: row.id };
   }
 }

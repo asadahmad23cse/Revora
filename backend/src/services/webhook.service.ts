@@ -15,6 +15,7 @@ import { config } from "../config";
 import type { NormalizedWebhookMessage, MessageDirection } from "../types";
 import { IdempotencyService } from "./idempotency.service";
 import { UserConfigService } from "./userConfig.service";
+import { UserLifecycleService } from "./userLifecycle.service";
 
 type WaMessage = z.infer<typeof waMessageSchema>;
 
@@ -289,6 +290,21 @@ export class WebhookService {
         client,
       );
       await client.query("COMMIT");
+
+      if (inserted && normalized.direction === "incoming") {
+        try {
+          await UserLifecycleService.afterIncomingMessagePersisted({
+            userId: user.id,
+            messageId: id,
+            inserted: true,
+          });
+        } catch (e) {
+          logger.error(
+            { err: e, userId: user.id, messageId: id },
+            "User lifecycle hook failed after inbound message (message still stored)",
+          );
+        }
+      }
 
       if (!inserted) {
         if (normalized.waMessageId) {

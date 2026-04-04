@@ -1,11 +1,16 @@
 import { Queue } from "bullmq";
 import { redisConnection } from "./connection";
 import { QUEUE_REPORT_GENERATION } from "./queueNames";
-import type { ReportWindow } from "../services/report.service";
+import type { ReportWindow, ReportTrigger } from "../services/report.service";
 import { logger } from "../utils/logger";
 import { defaultQueueJobOptions } from "./defaultJobOptions";
 
-export type ReportJob = { userId: string; window: ReportWindow };
+export type ReportJob = {
+  userId: string;
+  window: ReportWindow;
+  /** When set, workers can log lifecycle-specific messages */
+  trigger?: ReportTrigger;
+};
 
 const queue = new Queue<ReportJob>(QUEUE_REPORT_GENERATION, {
   connection: redisConnection,

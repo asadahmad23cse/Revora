@@ -20,7 +20,7 @@ export async function postOnboard(req: Request, res: Response, next: NextFunctio
       return;
     }
     const { userId } = await OnboardService.createOrUpdateOwner(parsed.data);
-    res.status(200).json({ ok: true, userId });
+    res.status(200).json({ ok: true, userId, user_id: userId });
   } catch (e) {
     logger.warn({ err: e }, "Onboard failed");
     next(e);

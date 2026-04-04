@@ -66,6 +66,20 @@ export const config = {
   webhookRateLimitMax: optionalNumber("WEBHOOK_RATE_LIMIT_MAX", 600),
   globalRateLimitWindowMs: optionalNumber("GLOBAL_RATE_LIMIT_WINDOW_MS", 60_000),
   globalRateLimitMax: optionalNumber("GLOBAL_RATE_LIMIT_MAX", 2000),
+
+  /** After this many inbound messages, enqueue first 14-day report (once per user). */
+  firstReportIncomingMessageThreshold: optionalNumber("FIRST_REPORT_INCOMING_MESSAGE_THRESHOLD", 10),
+
+  /**
+   * When true (or ALLOW_TEST_SIMULATE_API=true), POST /api/test/simulate-inbound is enabled.
+   * Keep false in production unless you intentionally expose this helper.
+   */
+  testMode: optionalBool("TEST_MODE", false),
+  allowTestSimulateApi: optionalBool("ALLOW_TEST_SIMULATE_API", false),
 } as const;
+
+export function isTestSimulateApiEnabled(): boolean {
+  return config.testMode || config.allowTestSimulateApi;
+}
 
 export type AppConfig = typeof config;

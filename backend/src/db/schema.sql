@@ -7,6 +7,7 @@ CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   phone_number VARCHAR(32) NOT NULL,
   display_name VARCHAR(255),
+  status VARCHAR(32) NOT NULL DEFAULT 'onboarded' CHECK (status IN ('onboarded', 'active')),
   config JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT users_phone_number_key UNIQUE (phone_number)
@@ -56,6 +57,7 @@ CREATE TABLE risk_events (
 CREATE INDEX idx_risk_events_created ON risk_events (created_at);
 
 COMMENT ON TABLE users IS 'Business / owner accounts (tenant), identified by WhatsApp business number.';
+COMMENT ON COLUMN users.status IS 'onboarded: signup complete, WhatsApp connection simulated pending; active: at least one inbound message processed.';
 COMMENT ON TABLE messages IS 'All WhatsApp legs; phone_number is the counterparty (customer) for both directions.';
 COMMENT ON TABLE response_tracking IS 'First owner reply metrics for a specific incoming customer message.';
 COMMENT ON TABLE risk_events IS 'Leak signals; copy uses at-risk language only (never confirmed lost revenue).';

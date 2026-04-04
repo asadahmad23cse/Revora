@@ -3,6 +3,8 @@ import { logger } from "../utils/logger";
 
 export type ReportWindow = "daily" | "14days";
 
+export type ReportTrigger = "manual_api" | "auto_first_incoming_threshold";
+
 export type ReportResult = {
   userId: string;
   window: ReportWindow;
@@ -25,7 +27,11 @@ function startOfWindow(now: Date, window: ReportWindow): Date {
 }
 
 export class ReportService {
-  static async generate(params: { userId: string; window: ReportWindow }): Promise<ReportResult> {
+  static async generate(params: {
+    userId: string;
+    window: ReportWindow;
+    trigger?: ReportTrigger;
+  }): Promise<ReportResult> {
     const now = new Date();
     const start = startOfWindow(now, params.window);
     const userCheck = await pool.query(`SELECT id FROM users WHERE id = $1`, [params.userId]);
@@ -75,7 +81,15 @@ export class ReportService {
 
     const summary = summaryParts.join(" ");
 
-    logger.info({ userId: params.userId, window: params.window, totalRiskyMessages }, "Report generated");
+    logger.info(
+      {
+        userId: params.userId,
+        window: params.window,
+        trigger: params.trigger,
+        totalRiskyMessages,
+      },
+      "Report generated",
+    );
 
     return {
       userId: params.userId,
