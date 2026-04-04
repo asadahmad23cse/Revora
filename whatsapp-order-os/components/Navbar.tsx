@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useOnboardModal } from "@/components/onboard/OnboardModal";
 
 export default function Navbar() {
+  const { openOnboardModal } = useOnboardModal();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -64,12 +66,13 @@ export default function Navbar() {
           <a href="#cta" className="text-sm text-slate-400 hover:text-white transition-colors px-4 py-2">
             Sign in
           </a>
-          <a
-            href="#cta"
+          <button
+            type="button"
+            onClick={openOnboardModal}
             className="btn-primary text-sm font-semibold text-white px-5 py-2.5 rounded-xl"
           >
             Start Free Analysis
-          </a>
+          </button>
         </div>
 
         {/* Mobile hamburger */}
@@ -104,12 +107,16 @@ export default function Navbar() {
                   {l.label}
                 </a>
               ))}
-              <a
-                href="#cta"
-                className="btn-primary text-sm font-semibold text-white px-5 py-3 rounded-xl text-center mt-2"
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileOpen(false);
+                  openOnboardModal();
+                }}
+                className="btn-primary text-sm font-semibold text-white px-5 py-3 rounded-xl text-center mt-2 w-full"
               >
                 Start Free Analysis
-              </a>
+              </button>
             </div>
           </motion.div>
         )}

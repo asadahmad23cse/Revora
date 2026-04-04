@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect } from "react";
 import { motion, useInView, animate } from "framer-motion";
+import { useOnboardModal } from "@/components/onboard/OnboardModal";
 
 function useCountUp(target: number, duration = 2, start = false) {
   const [val, setVal] = useState(0);
@@ -29,6 +30,7 @@ const maxBar = Math.max(...weekData);
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function RevenueLeakSection() {
+  const { openOnboardModal } = useOnboardModal();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
   const [started, setStarted] = useState(false);
@@ -216,9 +218,13 @@ export default function RevenueLeakSection() {
               <p className="text-sm font-semibold text-white">Want to see YOUR revenue leak?</p>
               <p className="text-xs text-slate-400">Free 14-day analysis. No credit card required.</p>
             </div>
-            <a href="#cta" className="btn-primary px-6 py-3 rounded-xl text-sm font-semibold text-white whitespace-nowrap">
+            <button
+              type="button"
+              onClick={openOnboardModal}
+              className="btn-primary px-6 py-3 rounded-xl text-sm font-semibold text-white whitespace-nowrap"
+            >
               Run My Free Analysis →
-            </a>
+            </button>
           </motion.div>
         </motion.div>
 

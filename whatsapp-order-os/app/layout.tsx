@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
+import { OnboardModalProvider } from "@/components/onboard/OnboardModal";
 import "./globals.css";
 
 const inter = Inter({
@@ -34,7 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} h-full`}>
       <body className="min-h-full bg-[#030711] text-slate-100 antialiased">
-        {children}
+        <OnboardModalProvider>{children}</OnboardModalProvider>
       </body>
     </html>
   );

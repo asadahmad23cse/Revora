@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
+import { useOnboardModal } from "@/components/onboard/OnboardModal";
 
 /* ── Floating message data ── */
 const incomingMessages = [
@@ -281,6 +282,7 @@ function FloatingWhatsAppPanel() {
 }
 
 export default function HeroSection() {
+  const { openOnboardModal } = useOnboardModal();
   const ref = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
   const y1 = useTransform(scrollYProgress, [0, 1], [0, -80]);
@@ -352,15 +354,16 @@ export default function HeroSection() {
               transition={{ duration: 0.6, delay: 0.35 }}
               className="flex flex-wrap gap-4 justify-center lg:justify-start"
             >
-              <a
-                href="#cta"
+              <button
+                type="button"
+                onClick={openOnboardModal}
                 className="btn-primary inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-white text-base"
               >
                 <span>Start Free Analysis</span>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
-              </a>
+              </button>
               <a
                 href="#how-it-works"
                 className="btn-ghost inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-slate-300 text-base"

@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import { randomUUID } from "crypto";
 import { webhookRouter } from "./routes/webhook.routes";
 import { apiRouter } from "./routes/api.routes";
+import { onboardApiRouter } from "./routes/onboard.routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import { logger } from "./utils/logger";
 import { requestIdMiddleware } from "./middlewares/requestId";
@@ -33,6 +34,7 @@ export function createApp(): express.Application {
 
   app.use(webhookRouter);
   app.use(express.json({ limit: "512kb" }));
+  app.use("/api", onboardApiRouter);
   app.use(apiRouter);
 
   app.use((_req, res) => {

@@ -2,16 +2,17 @@
 
 import { useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
+import { useOnboardModal } from "@/components/onboard/OnboardModal";
 
 export default function FinalCTASection() {
+  const { openOnboardModal } = useOnboardModal();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
   const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) setSubmitted(true);
+    openOnboardModal();
   };
 
   return (
@@ -69,37 +70,23 @@ export default function FinalCTASection() {
           transition={{ delay: 0.3 }}
           className="max-w-lg mx-auto mb-8"
         >
-          {!submitted ? (
-            <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email address"
-                required
-                className="flex-1 glass px-4 py-3.5 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-[#25D366]/40 transition-all duration-300"
-              />
-              <motion.button
-                type="submit"
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                className="btn-primary px-8 py-3.5 rounded-xl font-semibold text-white text-sm whitespace-nowrap"
-              >
-                Start Free Analysis →
-              </motion.button>
-            </form>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="glass-green rounded-xl px-6 py-4 flex items-center gap-3 justify-center"
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email address"
+              className="flex-1 glass px-4 py-3.5 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-[#25D366]/40 transition-all duration-300"
+            />
+            <motion.button
+              type="submit"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="btn-primary px-8 py-3.5 rounded-xl font-semibold text-white text-sm whitespace-nowrap"
             >
-              <div className="status-dot" />
-              <p className="text-sm font-semibold text-[#25D366]">
-                ✓ You&apos;re on the list! We&apos;ll reach out within 24 hours.
-              </p>
-            </motion.div>
-          )}
+              Start Free Analysis →
+            </motion.button>
+          </form>
         </motion.div>
 
         {/* Alternative CTAs */}
