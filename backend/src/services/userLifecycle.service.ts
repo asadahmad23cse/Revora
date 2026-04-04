@@ -3,6 +3,8 @@ import type { PoolClient } from "pg";
 import { config } from "../config";
 import { logger } from "../utils/logger";
 import { ReportQueue } from "../queues/report.queue";
+import { FunnelLifecycleService } from "./funnelLifecycle.service";
+import { LeadService } from "./lead.service";
 
 function lifecycleHasFirstReport(cfg: unknown): boolean {
   if (!cfg || typeof cfg !== "object") return false;
@@ -32,6 +34,21 @@ export class UserLifecycleService {
       const row = u.rows[0];
       if (!row) return;
 
+      const inboundCountR = await client.query<{ c: string }>(
+        `SELECT COUNT(*)::text AS c FROM messages WHERE user_id = $1 AND direction = 'incoming'`,
+        [params.userId],
+      );
+      const inboundCount = Number(inboundCountR.rows[0]?.c ?? "0");
+      if (inboundCount === 1) {
+        const setFirst = await FunnelLifecycleService.touchFirstMessageReceivedAt(client, params.userId);
+        if (setFirst) {
+          logger.info(
+            { userId: params.userId, messageId: params.messageId },
+            "First inbound message received; funnel lifecycle updated",
+          );
+        }
+      }
+
       if (row.status === "onboarded") {
         const act = await client.query<{ id: string }>(
           `UPDATE users SET
@@ -47,9 +64,11 @@ export class UserLifecycleService {
           [params.userId],
         );
         if (act.rows[0]) {
+          await FunnelLifecycleService.touchUserActivatedAt(client, params.userId);
+          await LeadService.markActiveByUserId(client, params.userId);
           logger.info(
             { userId: params.userId, messageId: params.messageId },
-            "First inbound message received; user activation completed (onboarded → active)",
+            "User activated (onboarded → active); lead marked active",
           );
         }
       }

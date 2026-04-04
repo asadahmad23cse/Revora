@@ -3,6 +3,7 @@ import { createApp } from "./app";
 import { config } from "./config";
 import { logger } from "./utils/logger";
 import { registerWorkers, workers } from "./queues/workers/registerWorkers";
+import { LeadFollowupQueue } from "./queues/leadFollowup.queue";
 import { pool } from "./db/pool";
 import { redisConnection } from "./queues/connection";
 
@@ -21,6 +22,7 @@ async function shutdown(signal: string): Promise<void> {
 
 async function main(): Promise<void> {
   registerWorkers();
+  await LeadFollowupQueue.ensureRepeatingScan(config.leadFollowupScanIntervalMs);
 
   const app = createApp();
   const server = createServer(app);

@@ -2,6 +2,7 @@ import { Worker, type Job } from "bullmq";
 import { redisConnection } from "../connection";
 import {
   QUEUE_LEAK_CALCULATION,
+  QUEUE_LEAD_FOLLOWUP,
   QUEUE_MESSAGE_INGEST,
   QUEUE_REPORT_GENERATION,
   QUEUE_RISK_EVALUATION,
@@ -16,6 +17,9 @@ import { ReportService } from "../../services/report.service";
 import { logger } from "../../utils/logger";
 import { deadLetterQueue } from "../deadLetter.queue";
 import { ConversationLockService } from "../../services/conversationLock.service";
+import { pool } from "../../db/pool";
+import { FunnelLifecycleService } from "../../services/funnelLifecycle.service";
+import { LeadService } from "../../services/lead.service";
 
 export const workers: Worker[] = [];
 
@@ -134,6 +138,18 @@ export function registerWorkers(): void {
     async (job) => {
       const trigger = job.data.trigger;
       const reportResult = await ReportService.generate(job.data);
+      const firstReport = await FunnelLifecycleService.touchFirstReportGeneratedAt(pool, reportResult.userId);
+      if (firstReport) {
+        logger.info(
+          {
+            userId: reportResult.userId,
+            window: reportResult.window,
+            trigger,
+            firstReportForUser: true,
+          },
+          "First report generated for user (funnel lifecycle)",
+        );
+      }
       logger.info(
         {
           userId: reportResult.userId,
@@ -143,15 +159,33 @@ export function registerWorkers(): void {
         },
         "Report job completed",
       );
-      if (trigger === "auto_first_incoming_threshold") {
-        logger.info(
-          { userId: reportResult.userId, window: reportResult.window },
-          "First report generated automatically after inbound message threshold",
-        );
-      }
     },
     { connection: redisConnection, concurrency: 4 },
   );
   workers.push(report);
   attachDlq(report, QUEUE_REPORT_GENERATION);
+
+  const leadFollowup = new Worker(
+    QUEUE_LEAD_FOLLOWUP,
+    async () => {
+      const due = await LeadService.findDueForFollowupScan();
+      for (const row of due) {
+        const bumped = await LeadService.bumpFollowupFromScan(row.id);
+        if (bumped) {
+          logger.info(
+            {
+              leadId: row.id,
+              phone: row.phone_number,
+              status: row.status,
+              followupCount: bumped.followup_count,
+            },
+            "Follow-up triggered (scheduled scan)",
+          );
+        }
+      }
+    },
+    { connection: redisConnection, concurrency: 1 },
+  );
+  workers.push(leadFollowup);
+  attachDlq(leadFollowup, QUEUE_LEAD_FOLLOWUP);
 }

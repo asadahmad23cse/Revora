@@ -76,6 +76,12 @@ export const config = {
    */
   testMode: optionalBool("TEST_MODE", false),
   allowTestSimulateApi: optionalBool("ALLOW_TEST_SIMULATE_API", false),
+
+  /** When set, GET/PATCH /api/leads and GET /api/metrics require header X-Admin-Key: <value> */
+  adminApiKey: (process.env.ADMIN_API_KEY ?? "").trim(),
+
+  /** BullMQ repeatable job: scan leads due for follow-up */
+  leadFollowupScanIntervalMs: optionalNumber("LEAD_FOLLOWUP_SCAN_INTERVAL_MS", 300_000),
 } as const;
 
 export function isTestSimulateApiEnabled(): boolean {

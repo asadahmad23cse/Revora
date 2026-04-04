@@ -147,6 +147,11 @@ curl -s -X POST http://localhost:8080/webhook \
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/webhook` | Ingest 360dialog-shaped payloads or `{ simulate: true, ... }` |
+| `POST` | `/api/onboard` | Landing signup; optional body `source`: `instagram` \| `whatsapp` \| `manual` (default `manual`); creates/updates `users` + `leads` + funnel `config.lifecycle` |
+| `GET` | `/api/leads` | List acquisition leads (optional `ADMIN_API_KEY` → `X-Admin-Key`) |
+| `PATCH` | `/api/leads/:id` | Update lead `status` (`new`…`dropped`), `notes`, `intent_tag` |
+| `POST` | `/api/leads/:id/followup` | Set `last_contacted_at` and `next_followup_at` +24h |
+| `GET` | `/api/metrics` | Funnel (`leads` / `onboarded` / `active` / `dropped`), users, `conversion_rate_percent`, `drop_rate_percent`, `avg_time_to_activation_hours` |
 | `GET` | `/reports/daily?userId=<uuid>` | Rolling **24h** aggregates + summary |
 | `GET` | `/reports/14days?userId=<uuid>` | Rolling **14d** aggregates + summary |
 | `GET` | `/health` | DB, Redis, BullMQ **queue counts**, optional `queueMetricsError` |

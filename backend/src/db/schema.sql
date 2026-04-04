@@ -15,6 +15,30 @@ CREATE TABLE users (
 
 CREATE INDEX idx_users_config_gin ON users USING gin (config jsonb_path_ops);
 
+CREATE TABLE leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  phone_number VARCHAR(32) NOT NULL,
+  source VARCHAR(32) NOT NULL CHECK (source IN ('instagram', 'whatsapp', 'manual')),
+  status VARCHAR(32) NOT NULL DEFAULT 'new' CHECK (
+    status IN ('new', 'contacted', 'onboarded', 'interested', 'trial', 'active', 'dropped')
+  ),
+  intent_tag VARCHAR(32) CHECK (intent_tag IS NULL OR intent_tag IN ('high_intent', 'low_intent')),
+  notes TEXT,
+  user_id UUID REFERENCES users (id) ON DELETE SET NULL,
+  last_contacted_at TIMESTAMPTZ,
+  next_followup_at TIMESTAMPTZ,
+  followup_count INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT leads_phone_number_key UNIQUE (phone_number)
+);
+
+CREATE INDEX idx_leads_user_id ON leads (user_id);
+CREATE INDEX idx_leads_status ON leads (status);
+CREATE INDEX idx_leads_created_at ON leads (created_at DESC);
+CREATE INDEX idx_leads_next_followup ON leads (next_followup_at) WHERE next_followup_at IS NOT NULL;
+
 CREATE TABLE messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -57,6 +81,7 @@ CREATE TABLE risk_events (
 CREATE INDEX idx_risk_events_created ON risk_events (created_at);
 
 COMMENT ON TABLE users IS 'Business / owner accounts (tenant), identified by WhatsApp business number.';
+COMMENT ON TABLE leads IS 'Inbound acquisition; one row per phone; linked after /api/onboard.';
 COMMENT ON COLUMN users.status IS 'onboarded: signup complete, WhatsApp connection simulated pending; active: at least one inbound message processed.';
 COMMENT ON TABLE messages IS 'All WhatsApp legs; phone_number is the counterparty (customer) for both directions.';
 COMMENT ON TABLE response_tracking IS 'First owner reply metrics for a specific incoming customer message.';
