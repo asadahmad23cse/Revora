@@ -1,5 +1,6 @@
 import { pool } from "../db/pool";
 import { logger } from "../utils/logger";
+import { sendTextMessage } from "./whatsapp";
 
 export type ReportWindow = "daily" | "14days";
 
@@ -16,6 +17,8 @@ export type ReportResult = {
   summary: string;
 };
 
+const WHATSAPP_14D_REPORT_MARKER = "📊 Aapki 14-Din Revenue Report";
+
 function startOfWindow(now: Date, window: ReportWindow): Date {
   const d = new Date(now.getTime());
   if (window === "daily") {
@@ -27,6 +30,137 @@ function startOfWindow(now: Date, window: ReportWindow): Date {
 }
 
 export class ReportService {
+  /** True when an outgoing WhatsApp with the 14d report marker already exists for today (Asia/Kolkata). */
+  private static async was14DayReportWhatsAppSentToday(userId: string): Promise<boolean> {
+    const r = await pool.query<{ one: number }>(
+      `SELECT 1 AS one
+       FROM messages
+       WHERE user_id = $1
+         AND direction = 'outgoing'
+         AND message_text LIKE '%' || $2 || '%'
+         AND date_trunc('day', "timestamp" AT TIME ZONE 'Asia/Kolkata')
+             = date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata')
+       LIMIT 1`,
+      [userId, WHATSAPP_14D_REPORT_MARKER],
+    );
+    return r.rows.length > 0;
+  }
+
+  /** Metrics for the Hindi 14-day WhatsApp digest (totals, >90m replies, peak delayed share). */
+  private static async fetch14DayWhatsAppDigest(params: {
+    userId: string;
+    periodStart: Date;
+    periodEnd: Date;
+  }): Promise<{
+    totalMessages: number;
+    unansweredOver90Min: number;
+    peakMissPercent: number;
+  }> {
+    const { userId, periodStart, periodEnd } = params;
+    const bounds = [userId, periodStart.toISOString(), periodEnd.toISOString()];
+
+    const total = await pool.query<{ c: string }>(
+      `SELECT COUNT(*)::text AS c
+       FROM messages
+       WHERE user_id = $1 AND "timestamp" >= $2 AND "timestamp" <= $3`,
+      bounds,
+    );
+
+    const unanswered = await pool.query<{ c: string }>(
+      `SELECT COUNT(*)::text AS c
+       FROM response_tracking rt
+       INNER JOIN messages m ON m.id = rt.message_id
+       WHERE m.user_id = $1
+         AND m.direction = 'incoming'
+         AND m."timestamp" >= $2
+         AND m."timestamp" <= $3
+         AND rt.response_time_seconds > 5400`,
+      bounds,
+    );
+
+    const peak = await pool.query<{ peak: string | null; total: string | null }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE
+           EXTRACT(HOUR FROM (m."timestamp" AT TIME ZONE 'Asia/Kolkata')) >= 11
+           AND EXTRACT(HOUR FROM (m."timestamp" AT TIME ZONE 'Asia/Kolkata')) < 13
+         )::text AS peak,
+         COUNT(*)::text AS total
+       FROM messages m
+       INNER JOIN response_tracking rt ON rt.message_id = m.id
+       WHERE m.user_id = $1
+         AND m.direction = 'incoming'
+         AND m."timestamp" >= $2
+         AND m."timestamp" <= $3
+         AND rt.response_time_seconds > 5400`,
+      bounds,
+    );
+
+    const peakN = Number(peak.rows[0]?.peak ?? "0");
+    const totalDelayed = Number(peak.rows[0]?.total ?? "0");
+    const peakMissPercent =
+      totalDelayed > 0 ? Math.min(100, Math.round((peakN / totalDelayed) * 100)) : 0;
+
+    return {
+      totalMessages: Number(total.rows[0]?.c ?? "0"),
+      unansweredOver90Min: Number(unanswered.rows[0]?.c ?? "0"),
+      peakMissPercent,
+    };
+  }
+
+  /** Sends the fixed-format 14-day Hindi report to the owner WhatsApp once per India-local day when possible. */
+  static async deliver14DayReportViaWhatsApp(result: ReportResult): Promise<void> {
+    if (result.window !== "14days") return;
+    try {
+      const user = await pool.query<{ phone_number: string }>(
+        `SELECT phone_number FROM users WHERE id = $1 LIMIT 1`,
+        [result.userId],
+      );
+      const phone = user.rows[0]?.phone_number?.trim();
+      if (!phone) {
+        logger.info({ userId: result.userId }, "14d WhatsApp report: no owner phone; skip");
+        return;
+      }
+
+      const already = await ReportService.was14DayReportWhatsAppSentToday(result.userId);
+      if (already) {
+        logger.info({ userId: result.userId }, "14d WhatsApp report: already sent today; skip");
+        return;
+      }
+
+      const digest = await ReportService.fetch14DayWhatsAppDigest({
+        userId: result.userId,
+        periodStart: result.periodStart,
+        periodEnd: result.periodEnd,
+      });
+
+      const est = Math.round(Number(result.totalEstimatedRevenueAtRiskInr));
+      const avgMins =
+        result.averageResponseTimeSeconds !== null && Number.isFinite(result.averageResponseTimeSeconds)
+          ? Math.round(result.averageResponseTimeSeconds / 60)
+          : 0;
+
+      const text = `━━━━━━━━━━━━━━━━━━━━━
+${WHATSAPP_14D_REPORT_MARKER}
+━━━━━━━━━━━━━━━━━━━━━
+
+Kul messages mile: ${digest.totalMessages.toLocaleString("en-IN")}
+90 min mein jawab nahi diya: ${digest.unansweredOver90Min.toLocaleString("en-IN")}
+Estimated revenue at risk: ₹${est.toLocaleString("en-IN")}
+
+Aapka avg response time: ${avgMins.toLocaleString("en-IN")} min
+Peak hours mein missed (11am-1pm): ${digest.peakMissPercent.toLocaleString("en-IN")}%
+
+Is leak ko rokna chahte ho?
+Reply karo: HAAN
+
+━━━━━━━━━━━━━━━━━━━━━`;
+
+      await sendTextMessage(phone, text);
+    } catch (e) {
+      logger.error({ err: e, userId: result.userId }, "14d WhatsApp report delivery failed");
+    }
+  }
+
   static async generate(params: {
     userId: string;
     window: ReportWindow;
@@ -91,7 +225,7 @@ export class ReportService {
       "Report generated",
     );
 
-    return {
+    const reportResult: ReportResult = {
       userId: params.userId,
       window: params.window,
       periodStart: start,
@@ -104,5 +238,16 @@ export class ReportService {
           : null,
       summary,
     };
+
+    if (params.window === "14days") {
+      void ReportService.deliver14DayReportViaWhatsApp(reportResult).catch((err) => {
+        logger.error(
+          { err, userId: params.userId },
+          "14d WhatsApp report delivery rejected unexpectedly",
+        );
+      });
+    }
+
+    return reportResult;
   }
 }

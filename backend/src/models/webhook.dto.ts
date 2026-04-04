@@ -44,17 +44,30 @@ export const waMessageSchema = z
     type: z.string().optional(),
     text: textBody.optional(),
     interactive: interactiveBody,
+    image: z.object({ caption: z.string().optional() }).optional(),
+    document: z.object({ caption: z.string().optional(), filename: z.string().optional() }).optional(),
+    audio: z.object({ id: z.string().optional() }).optional(),
+    voice: z.object({ id: z.string().optional() }).optional(),
     errors: z.array(z.unknown()).optional(),
   })
   .passthrough();
 
 export const waValueSchema = z.object({
+  messaging_product: z.string().optional(),
   messages: z.array(waMessageSchema).optional(),
   metadata: z
     .object({
       display_phone_number: z.string().optional(),
       phone_number_id: z.string().optional(),
     })
+    .optional(),
+  contacts: z
+    .array(
+      z.object({
+        profile: z.object({ name: z.string().optional() }).optional(),
+        wa_id: z.string().optional(),
+      }),
+    )
     .optional(),
 });
 

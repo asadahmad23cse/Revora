@@ -1,8 +1,12 @@
-import { Router, raw } from "express";
+import express, { Router, raw } from "express";
 import { verifyWebhookSignature } from "../middlewares/webhookSignature";
 import { captureRawJsonAndParse } from "../middlewares/webhookRawBody";
 import { webhookRateLimiter } from "../middlewares/webhookRateLimit";
-import { postWebhook, postWebhookWhatsApp } from "../controllers/webhook.controller";
+import {
+  getMetaWhatsAppWebhookVerify,
+  postMetaWhatsAppWebhook,
+  postWebhook,
+} from "../controllers/webhook.controller";
 
 const webhookRouter = Router();
 
@@ -13,9 +17,15 @@ const webhookStack = [
   webhookRateLimiter,
 ] as const;
 
-webhookRouter.post("/webhook", ...webhookStack, postWebhook);
+webhookRouter.get("/webhook/whatsapp", getMetaWhatsAppWebhookVerify);
 
-/** 360dialog: fast 200 + async ingest (same verification + Cloud API JSON as /webhook). */
-webhookRouter.post("/webhook/whatsapp", ...webhookStack, postWebhookWhatsApp);
+webhookRouter.post(
+  "/webhook/whatsapp",
+  express.json({ limit: "512kb" }),
+  webhookRateLimiter,
+  postMetaWhatsAppWebhook,
+);
+
+webhookRouter.post("/webhook", ...webhookStack, postWebhook);
 
 export { webhookRouter };

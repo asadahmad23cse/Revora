@@ -37,4 +37,14 @@ export class UserService {
     );
     return r.rows[0] ?? null;
   }
+
+  /** Resolves owner user id by normalized business phone on `users.phone_number`. */
+  static async findUserIdByPhone(phone: string): Promise<string | null> {
+    const p = UserService.normalizePhone(phone);
+    const r = await pool.query<{ id: string }>(
+      `SELECT id FROM users WHERE phone_number = $1 LIMIT 1`,
+      [p],
+    );
+    return r.rows[0]?.id ?? null;
+  }
 }

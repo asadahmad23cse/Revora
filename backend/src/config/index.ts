@@ -1,92 +1,74 @@
-import "dotenv/config";
+import { env } from "./env";
 
-function required(name: string): string {
-  const v = process.env[name];
-  if (!v || !v.trim()) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return v.trim();
+function envBool(raw: string | undefined, defaultVal: boolean): boolean {
+  if (raw === undefined || raw === "") return defaultVal;
+  return raw === "1" || raw.toLowerCase() === "true";
 }
-
-function optionalNumber(name: string, fallback: number): number {
-  const v = process.env[name];
-  if (v === undefined || v === "") return fallback;
-  const n = Number(v);
-  if (!Number.isFinite(n)) {
-    throw new Error(`Invalid number for ${name}`);
-  }
-  return n;
-}
-
-function optionalBool(name: string, fallback: boolean): boolean {
-  const v = process.env[name];
-  if (v === undefined || v === "") return fallback;
-  return v === "1" || v.toLowerCase() === "true";
-}
-
-const nodeEnv = process.env.NODE_ENV ?? "development";
 
 export const config = {
-  nodeEnv,
-  port: optionalNumber("PORT", 8080),
-  logLevel: process.env.LOG_LEVEL ?? "info",
+  nodeEnv: env.NODE_ENV,
+  port: env.PORT,
+  logLevel: env.LOG_LEVEL,
 
-  databaseUrl: required("DATABASE_URL"),
-  databaseUseSsl:
-    process.env.DATABASE_SSL === "true" ||
-    /sslmode=require/i.test(process.env.DATABASE_URL ?? ""),
-  databaseRejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false",
+  databaseUrl: env.DATABASE_URL,
+  databaseUseSsl: env.DATABASE_SSL === "true" || /sslmode=require/i.test(env.DATABASE_URL),
+  databaseRejectUnauthorized: env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false",
 
-  redisUrl: required("REDIS_URL"),
+  redisUrl: env.REDIS_URL,
 
-  defaultAovInr: optionalNumber("DEFAULT_AOV_INR", 350),
-  responseThresholdSeconds: optionalNumber("RESPONSE_THRESHOLD_SECONDS", 300),
+  defaultAovInr: env.DEFAULT_AOV_INR,
+  responseThresholdSeconds: env.RESPONSE_THRESHOLD_SECONDS,
 
-  webhookVerifyToken: process.env.WEBHOOK_VERIFY_TOKEN ?? "",
+  webhookVerifyToken: env.WEBHOOK_VERIFY_TOKEN.trim(),
   /** Meta / WhatsApp Cloud: App Secret — used for X-Hub-Signature-256 (360dialog uses same header) */
-  webhookAppSecret: (process.env.WEBHOOK_APP_SECRET ?? process.env.DIALOG360_WEBHOOK_SECRET ?? "").trim(),
+  webhookAppSecret: (env.WEBHOOK_APP_SECRET ?? env.DIALOG360_WEBHOOK_SECRET ?? "").trim(),
 
   /** 360dialog / Cloud API: WABA outbound auth (d360-api-key) — optional until send path is used */
-  threeSixtyDialogApiKey: (process.env.THREESIXTY_DIALOG_API_KEY ?? "").trim(),
+  threeSixtyDialogApiKey: (env.THREESIXTY_DIALOG_API_KEY ?? "").trim(),
   /** Partner API token (future); optional */
-  threeSixtyDialogPartnerToken: (process.env.THREESIXTY_DIALOG_PARTNER_TOKEN ?? "").trim(),
+  threeSixtyDialogPartnerToken: (env.THREESIXTY_DIALOG_PARTNER_TOKEN ?? "").trim(),
   /** When true, signature verification is skipped (development / staging only). */
-  webhookSkipSignatureVerify: optionalBool("WEBHOOK_SKIP_SIGNATURE_VERIFY", nodeEnv !== "production"),
+  webhookSkipSignatureVerify: envBool(env.WEBHOOK_SKIP_SIGNATURE_VERIFY, env.NODE_ENV !== "production"),
   /** Allow `{ simulate: true }` payloads without HMAC when verification is enabled */
-  webhookAllowSimulateWithoutSignature: optionalBool("WEBHOOK_ALLOW_SIMULATE_WITHOUT_SIGNATURE", true),
+  webhookAllowSimulateWithoutSignature: envBool(env.WEBHOOK_ALLOW_SIMULATE_WITHOUT_SIGNATURE, true),
 
-  defaultBusinessPhone: (process.env.DEFAULT_BUSINESS_PHONE ?? "").trim(),
+  defaultBusinessPhone: (env.DEFAULT_BUSINESS_PHONE ?? "").trim(),
+
+  /** Meta WhatsApp Cloud API (Graph outbound) */
+  whatsappToken: env.WHATSAPP_TOKEN.trim(),
+  whatsappPhoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID.trim(),
+  whatsappApiVersion: env.WHATSAPP_API_VERSION.trim(),
 
   /** BullMQ */
-  queueMaxAttempts: optionalNumber("QUEUE_MAX_ATTEMPTS", 8),
-  queueBackoffMs: optionalNumber("QUEUE_BACKOFF_MS", 2000),
-  queueRemoveOnComplete: optionalNumber("QUEUE_REMOVE_ON_COMPLETE_COUNT", 2000),
-  queueRemoveOnFail: optionalNumber("QUEUE_REMOVE_ON_FAIL_COUNT", 5000),
+  queueMaxAttempts: env.QUEUE_MAX_ATTEMPTS,
+  queueBackoffMs: env.QUEUE_BACKOFF_MS,
+  queueRemoveOnComplete: env.QUEUE_REMOVE_ON_COMPLETE_COUNT,
+  queueRemoveOnFail: env.QUEUE_REMOVE_ON_FAIL_COUNT,
 
-  conversationLockTtlSeconds: optionalNumber("CONVERSATION_LOCK_TTL_SECONDS", 45),
-  idempotencyWaTtlSeconds: optionalNumber("IDEMPOTENCY_WA_TTL_SECONDS", 172800),
+  conversationLockTtlSeconds: env.CONVERSATION_LOCK_TTL_SECONDS,
+  idempotencyWaTtlSeconds: env.IDEMPOTENCY_WA_TTL_SECONDS,
 
   /** Rate limits (per IP) */
-  webhookRateLimitWindowMs: optionalNumber("WEBHOOK_RATE_LIMIT_WINDOW_MS", 60_000),
-  webhookRateLimitMax: optionalNumber("WEBHOOK_RATE_LIMIT_MAX", 600),
-  globalRateLimitWindowMs: optionalNumber("GLOBAL_RATE_LIMIT_WINDOW_MS", 60_000),
-  globalRateLimitMax: optionalNumber("GLOBAL_RATE_LIMIT_MAX", 2000),
+  webhookRateLimitWindowMs: env.WEBHOOK_RATE_LIMIT_WINDOW_MS,
+  webhookRateLimitMax: env.WEBHOOK_RATE_LIMIT_MAX,
+  globalRateLimitWindowMs: env.GLOBAL_RATE_LIMIT_WINDOW_MS,
+  globalRateLimitMax: env.GLOBAL_RATE_LIMIT_MAX,
 
-  /** After this many inbound messages, enqueue first 14-day report (once per user). */
-  firstReportIncomingMessageThreshold: optionalNumber("FIRST_REPORT_INCOMING_MESSAGE_THRESHOLD", 10),
+  /** After this many inbound messages for a user, enqueue the first 14-day report (once per user). */
+  firstReportIncomingMessageThreshold: env.FIRST_REPORT_INCOMING_MESSAGE_THRESHOLD,
 
   /**
    * When true (or ALLOW_TEST_SIMULATE_API=true), POST /api/test/simulate-inbound is enabled.
    * Keep false in production unless you intentionally expose this helper.
    */
-  testMode: optionalBool("TEST_MODE", false),
-  allowTestSimulateApi: optionalBool("ALLOW_TEST_SIMULATE_API", false),
+  testMode: envBool(env.TEST_MODE, false),
+  allowTestSimulateApi: envBool(env.ALLOW_TEST_SIMULATE_API, false),
 
   /** When set, GET/PATCH /api/leads and GET /api/metrics require header X-Admin-Key: <value> */
-  adminApiKey: (process.env.ADMIN_API_KEY ?? "").trim(),
+  adminApiKey: (env.ADMIN_API_KEY ?? "").trim(),
 
   /** BullMQ repeatable job: scan leads due for follow-up */
-  leadFollowupScanIntervalMs: optionalNumber("LEAD_FOLLOWUP_SCAN_INTERVAL_MS", 300_000),
+  leadFollowupScanIntervalMs: env.LEAD_FOLLOWUP_SCAN_INTERVAL_MS,
 } as const;
 
 export function isTestSimulateApiEnabled(): boolean {

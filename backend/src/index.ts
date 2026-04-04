@@ -1,4 +1,5 @@
-import { createServer } from "http";
+import "./config/env";
+import { createServer, type Server } from "http";
 import { createApp } from "./app";
 import { config } from "./config";
 import { logger } from "./utils/logger";
@@ -7,12 +8,23 @@ import { LeadFollowupQueue } from "./queues/leadFollowup.queue";
 import { pool } from "./db/pool";
 import { redisConnection } from "./queues/connection";
 
+let httpServer: Server | undefined;
+
+/** Stops HTTP, waits up to 10s for BullMQ workers, then closes Postgres and Redis. */
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, "Shutting down gracefully");
 
-  for (const w of workers) {
-    await w.close();
-  }
+  await new Promise<void>((resolve, reject) => {
+    if (!httpServer) {
+      resolve();
+      return;
+    }
+    httpServer.close((err) => (err ? reject(err) : resolve()));
+  });
+
+  const workerClose = Promise.all(workers.map((w) => w.close()));
+  const capped = new Promise<void>((r) => setTimeout(r, 10_000));
+  await Promise.race([workerClose, capped]);
 
   await pool.end().catch((err) => logger.error({ err }, "pool.end error"));
   await redisConnection.quit().catch((err) => logger.error({ err }, "redis.quit error"));
@@ -25,9 +37,9 @@ async function main(): Promise<void> {
   await LeadFollowupQueue.ensureRepeatingScan(config.leadFollowupScanIntervalMs);
 
   const app = createApp();
-  const server = createServer(app);
+  httpServer = createServer(app);
 
-  server.listen(config.port, () => {
+  httpServer.listen(config.port, () => {
     logger.info({ port: config.port, env: config.nodeEnv }, "Revora API listening");
   });
 

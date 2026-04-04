@@ -2,10 +2,12 @@ import express from "express";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { randomUUID } from "crypto";
+import { config } from "./config";
 import { webhookRouter } from "./routes/webhook.routes";
 import { apiRouter } from "./routes/api.routes";
 import { onboardApiRouter } from "./routes/onboard.routes";
 import { adminApiRouter } from "./routes/admin.routes";
+import { devRouter } from "./routes/dev.routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import { logger } from "./utils/logger";
 import { requestIdMiddleware } from "./middlewares/requestId";
@@ -35,6 +37,9 @@ export function createApp(): express.Application {
 
   app.use(webhookRouter);
   app.use(express.json({ limit: "512kb" }));
+  if (config.nodeEnv === "development") {
+    app.use("/dev", devRouter);
+  }
   app.use("/api", onboardApiRouter);
   app.use("/api", adminApiRouter);
   app.use(apiRouter);
