@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "whatsapp-order-os",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:\\Users\\ASAD AHMAD\\OneDrive\\Desktop\\revora\\whatsapp-order-os\\node_modules\\next\\dist\\bin\\next", "dev", "--port", "3000"],
+      "cwd": "C:\\Users\\ASAD AHMAD\\OneDrive\\Desktop\\revora\\whatsapp-order-os",
+      "port": 3000
+    }
+  ]
+}

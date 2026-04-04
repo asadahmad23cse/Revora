@@ -1,0 +1,9 @@
+{
+  "simulate": true,
+  "business_phone": "919811111111",
+  "customer_phone": "919876543210",
+  "direction": "outgoing",
+  "text": "Order noted! 2 paneer thali — delivery by 1 PM.",
+  "wa_message_id": "wamid.simulate-002",
+  "timestamp": "2026-04-04T06:31:00.000Z"
+}
