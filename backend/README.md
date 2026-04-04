@@ -11,6 +11,23 @@ Production-oriented backend for the **Revenue Leak Detector**: ingests WhatsApp 
 - Redis + BullMQ (async ingest follow-up, delayed risk evaluation, leak finalization, report jobs)  
 - Structured logging (pino) + request correlation id
 
+## Run with Docker
+
+Use **PostgreSQL** and **Redis** from the repo root without local installs:
+
+1. `docker compose up -d` (from the parent of `backend/` — see [root README](../README.md#run-with-docker))
+2. Backend:
+
+   ```bash
+   cd backend
+   npm install
+   # Empty DB: npm run migrate:schema once, then:
+   npm run migrate
+   npm run dev
+   ```
+
+Use `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/revora` and `REDIS_URL=redis://localhost:6379` (see `.env.example`).
+
 ## Production hardening
 
 - **Webhook HMAC** — verifies raw JSON body using `WEBHOOK_APP_SECRET` (Meta/WhatsApp style `X-Hub-Signature-256: sha256=<hex>`), optional `X-Revora-Signature`, or `webhook-signature: v1,<base64>` digest. **401** when invalid. Dev default `WEBHOOK_SKIP_SIGNATURE_VERIFY=true` — turn off in production.
@@ -23,9 +40,9 @@ Production-oriented backend for the **Revenue Leak Detector**: ingests WhatsApp 
 
 ## Quick start (local)
 
-1. **PostgreSQL** — create database `revora` (or any name) and set `DATABASE_URL`.
+1. **PostgreSQL** — create database `revora` (or any name) and set `DATABASE_URL`, **or** run [Docker Compose at the repo root](../README.md#run-with-docker) (`postgres` on `localhost:5432`).
 
-2. **Redis** — run locally (`redis://localhost:6379`) or use a managed URL.
+2. **Redis** — run locally (`redis://localhost:6379`), **or** use the Compose `redis` service on the same URL.
 
 3. **Environment**
 

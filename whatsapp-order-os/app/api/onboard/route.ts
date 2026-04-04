@@ -28,17 +28,29 @@ export async function POST(req: Request) {
   }
 
   const base = (process.env.REVORA_BACKEND_URL ?? "http://127.0.0.1:8080").replace(/\/$/, "");
+  const upstreamUrl = `${base}/api/onboard`;
   let res: Response;
   try {
-    res = await fetch(`${base}/api/onboard`, {
+    res = await fetch(upstreamUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(parsed),
       cache: "no-store",
     });
-  } catch {
+  } catch (err) {
+    const isDev = process.env.NODE_ENV === "development";
+    if (isDev) {
+      console.error("[api/onboard] Failed to reach Revora API at", upstreamUrl, err);
+    }
     return NextResponse.json(
-      { error: "Could not reach the server. Please try again later.", code: "upstream_unreachable" },
+      {
+        error: "Could not reach the Revora API. Is it running?",
+        code: "upstream_unreachable",
+        ...(isDev && {
+          hint:
+            `Expected API base: ${base} (set REVORA_BACKEND_URL in whatsapp-order-os/.env.local if different). From repo root run: cd backend && npm run dev — needs DATABASE_URL and REDIS_URL in backend/.env.`,
+        }),
+      },
       { status: 502 },
     );
   }

@@ -28,10 +28,14 @@ const SUCCESS_COPY =
   "Your free analysis has started. We will connect your WhatsApp shortly.";
 
 function readErrorMessage(data: unknown): string {
-  if (data && typeof data === "object" && "error" in data) {
-    const e = (data as { error?: unknown }).error;
-    if (typeof e === "string" && e.trim()) return e;
+  if (!data || typeof data !== "object") {
+    return "Something went wrong. Please try again.";
   }
+  const o = data as { error?: unknown; hint?: unknown };
+  const msg = typeof o.error === "string" && o.error.trim() ? o.error.trim() : null;
+  const hint = typeof o.hint === "string" && o.hint.trim() ? o.hint.trim() : null;
+  if (msg && hint) return `${msg}\n\n${hint}`;
+  if (msg) return msg;
   return "Something went wrong. Please try again.";
 }
 
@@ -194,7 +198,7 @@ function OnboardModalDialog({
                 />
               </div>
               {error ? (
-                <p className="text-sm text-red-400" role="alert">
+                <p className="text-sm text-red-400 whitespace-pre-line" role="alert">
                   {error}
                 </p>
               ) : null}
