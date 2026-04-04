@@ -16,6 +16,7 @@ import type { NormalizedWebhookMessage, MessageDirection } from "../types";
 import { IdempotencyService } from "./idempotency.service";
 import { UserConfigService } from "./userConfig.service";
 import { UserLifecycleService } from "./userLifecycle.service";
+import { LeadService } from "./lead.service";
 
 type WaMessage = z.infer<typeof waMessageSchema>;
 
@@ -222,11 +223,14 @@ export class WebhookService {
     body: unknown;
     businessPhoneHeader?: string;
     headerFallback: { aovInr?: number; thresholdSeconds?: number };
+    /** When set (e.g. dev simulate), threaded to ingest worker for `leads.business_id`. */
+    businessId?: string | null;
   }): Promise<WebhookIngestResult> {
+    const ingestBusinessId = params.businessId ?? null;
     const sim = simulateWebhookSchema.safeParse(params.body);
     if (sim.success) {
       const n = normalizeSimulate(sim.data);
-      const outcome = await WebhookService.persistAndEnqueue(n, params.headerFallback);
+      const outcome = await WebhookService.persistAndEnqueue(n, params.headerFallback, ingestBusinessId);
       return WebhookService.resultFromSingle(outcome);
     }
 
@@ -275,7 +279,11 @@ export class WebhookService {
           skipped += 1;
           continue;
         }
-        const outcome = await WebhookService.persistAndEnqueue(normalized, params.headerFallback);
+        const outcome = await WebhookService.persistAndEnqueue(
+          normalized,
+          params.headerFallback,
+          ingestBusinessId,
+        );
         const r = WebhookService.resultFromSingle(outcome);
         accepted += r.accepted;
         skipped += r.skipped;
@@ -300,6 +308,7 @@ export class WebhookService {
   static async persistAndEnqueue(
     normalized: NormalizedWebhookMessage,
     headerFallback: { aovInr?: number; thresholdSeconds?: number },
+    ingestBusinessId: string | null = null,
   ): Promise<"inserted" | "duplicate_redis" | "duplicate_db"> {
     if (normalized.waMessageId) {
       const existsAlready = await MessageService.waMessageExists(normalized.waMessageId);
@@ -349,6 +358,36 @@ export class WebhookService {
             "User lifecycle hook failed after inbound message (message still stored)",
           );
         }
+        try {
+          const bizId =
+            ingestBusinessId ?? (await LeadService.resolveBusinessIdForWhatsAppUser(pool, user.id));
+          if (bizId) {
+            const custPhone = UserService.normalizePhone(normalized.counterpartyPhone);
+            const digits = custPhone.replace(/\D/g, "");
+            const display = digits.length >= 4 ? `WhatsApp ${digits.slice(-4)}` : "WhatsApp contact";
+            const { leadId } = await LeadService.upsertFromIngest(pool, {
+              phone: custPhone,
+              name: display,
+              businessId: bizId,
+            });
+            if (normalized.messageText) {
+              await pool.query(
+                `INSERT INTO lead_messages (lead_id, content, status, source)
+                 SELECT $1::uuid, $2::text, 'received', 'worker_auto'
+                 WHERE NOT EXISTS (
+                   SELECT 1 FROM lead_messages lm
+                   WHERE lm.lead_id = $1::uuid AND lm.content = $2::text
+                 )`,
+                [leadId, normalized.messageText],
+              );
+            }
+          }
+        } catch (e) {
+          logger.error(
+            { err: e, userId: user.id, messageId: id },
+            "Lead capture after inbound message failed (message still stored)",
+          );
+        }
       }
 
       if (!inserted) {
@@ -364,6 +403,7 @@ export class WebhookService {
           messageId: id,
           thresholdSeconds: effective.thresholdSeconds,
           aovInr: effective.aovInr,
+          businessId: ingestBusinessId,
         });
         logger.info(
           {

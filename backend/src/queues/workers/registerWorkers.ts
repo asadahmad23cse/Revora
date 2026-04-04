@@ -61,7 +61,7 @@ export function registerWorkers(): void {
   const ingest = new Worker(
     QUEUE_MESSAGE_INGEST,
     async (job) => {
-      const { messageId, thresholdSeconds, aovInr } = job.data;
+      const { messageId, thresholdSeconds, aovInr, businessId: jobBusinessId } = job.data;
       const msg = await MessageService.getById(messageId);
       if (!msg) {
         logger.warn({ messageId }, "Ingest: message not found");
@@ -76,14 +76,38 @@ export function registerWorkers(): void {
           await ResponseTrackingService.recordOwnerReplyForOutgoingMessage(messageId, thresholdSeconds);
           return;
         }
-        if (msg.direction === "incoming" && hasFoodOrOrderIntent(msg.message_text)) {
-          await RiskQueue.scheduleEvaluation({
-            incomingMessageId: messageId,
-            delayMs: thresholdSeconds * 1000,
-            thresholdSeconds,
-            aovInr,
-          });
-          logger.info({ messageId, thresholdSeconds }, "Scheduled delayed risk evaluation");
+        if (msg.direction === "incoming") {
+          const bizId =
+            jobBusinessId ?? (await LeadService.resolveBusinessIdForWhatsAppUser(pool, msg.user_id));
+          if (bizId) {
+            const digits = msg.phone_number.replace(/\D/g, "");
+            const display = digits.length >= 4 ? `WhatsApp ${digits.slice(-4)}` : "WhatsApp contact";
+            const { leadId } = await LeadService.upsertFromIngest(pool, {
+              phone: msg.phone_number,
+              name: display,
+              businessId: bizId,
+            });
+            if (msg.message_text) {
+              await pool.query(
+                `INSERT INTO lead_messages (lead_id, content, status, source)
+                 SELECT $1::uuid, $2::text, 'received', 'worker_auto'
+                 WHERE NOT EXISTS (
+                   SELECT 1 FROM lead_messages lm
+                   WHERE lm.lead_id = $1::uuid AND lm.content = $2::text
+                 )`,
+                [leadId, msg.message_text],
+              );
+            }
+          }
+          if (hasFoodOrOrderIntent(msg.message_text)) {
+            await RiskQueue.scheduleEvaluation({
+              incomingMessageId: messageId,
+              delayMs: thresholdSeconds * 1000,
+              thresholdSeconds,
+              aovInr,
+            });
+            logger.info({ messageId, thresholdSeconds }, "Scheduled delayed risk evaluation");
+          }
         }
       } finally {
         await ConversationLockService.release(lock);

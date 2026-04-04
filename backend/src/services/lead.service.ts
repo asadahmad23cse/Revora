@@ -110,6 +110,48 @@ export class LeadService {
     return { leadId: id };
   }
 
+  /** Maps WhatsApp tenant `users.id` to `businesses.id` when phone numbers match. */
+  static async resolveBusinessIdForWhatsAppUser(db: Db, userId: string): Promise<string | null> {
+    const r = await db.query<{ id: string }>(
+      `SELECT b.id
+       FROM businesses b
+       INNER JOIN users u ON u.phone_number = b.phone_number
+       WHERE u.id = $1
+       LIMIT 1`,
+      [userId],
+    );
+    return r.rows[0]?.id ?? null;
+  }
+
+  /**
+   * Inbound WhatsApp capture: upsert by customer phone (status `new` on insert).
+   * Preserves existing `business_id` when the job passes null; otherwise applies COALESCE on conflict.
+   */
+  static async upsertFromIngest(
+    db: Db,
+    params: { phone: string; name: string; businessId?: string | null },
+  ): Promise<{ leadId: string }> {
+    const businessId = params.businessId ?? null;
+    const name = (params.name.trim() || "WhatsApp contact").slice(0, 255);
+    const phone = params.phone;
+    const r = await db.query<{ id: string }>(
+      `INSERT INTO leads (name, phone_number, source, status, user_id, business_id)
+       VALUES ($1, $2, 'whatsapp', 'new', NULL, $3)
+       ON CONFLICT (phone_number) DO UPDATE SET
+         business_id = COALESCE(EXCLUDED.business_id, leads.business_id),
+         updated_at = now()
+       RETURNING id`,
+      [name, phone, businessId],
+    );
+    const id = r.rows[0]?.id;
+    if (!id) throw new Error("Lead ingest upsert failed");
+    logger.info(
+      { leadId: id, phone, businessId, source: "whatsapp" },
+      "Lead upserted from inbound message ingest",
+    );
+    return { leadId: id };
+  }
+
   static async markActiveByUserId(db: Db, userId: string): Promise<void> {
     const cfgR = await db.query<{ config: unknown }>(`SELECT config FROM users WHERE id = $1`, [userId]);
     const intent = LeadService.intentFromLifecycleConfig(cfgR.rows[0]?.config);

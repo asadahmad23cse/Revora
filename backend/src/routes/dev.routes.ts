@@ -99,6 +99,7 @@ devRouter.post("/simulate-message", async (req: Request, res: Response, next: Ne
       body: payload,
       businessPhoneHeader: undefined,
       headerFallback: {},
+      businessId,
     });
     res.status(200).json({ queued: true, messageId });
   } catch (e) {

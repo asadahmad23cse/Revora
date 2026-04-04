@@ -8,6 +8,8 @@ export type MessageIngestJob = {
   messageId: string;
   thresholdSeconds: number;
   aovInr: number;
+  /** Optional tenant hint (e.g. /dev/simulate-message); production uses DB resolve from `users`. */
+  businessId?: string | null;
 };
 
 const queue = new Queue<MessageIngestJob>(QUEUE_MESSAGE_INGEST, {
