@@ -38,6 +38,8 @@ Use `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/revora` and `RED
 - **Rate limits** — Redis-backed `express-rate-limit`; tighter limits on `POST /webhook`; `/health` exempt from global limiter.
 - **Payloads** — WhatsApp `text`, `interactive` (button/list reply titles), `button`; skips unsupported types, messages with `errors`, and Cloud messages missing `id`.
 
+Production runbook: see `PRODUCTION_CHECKLIST.md`.
+
 ## Quick start (local)
 
 1. **PostgreSQL** — create database `revora` (or any name) and set `DATABASE_URL`, **or** run [Docker Compose at the repo root](../README.md#run-with-docker) (`postgres` on `localhost:5432`).
