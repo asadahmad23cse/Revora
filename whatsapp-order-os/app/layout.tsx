@@ -33,8 +33,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} h-full`}>
-      <body className="min-h-full bg-[#030711] text-slate-100 antialiased">
+    <html
+      lang="en"
+      className={`${inter.variable} ${spaceGrotesk.variable} h-full`}
+      suppressHydrationWarning
+    >
+      <body className="min-h-full bg-[#030711] text-slate-100 antialiased" suppressHydrationWarning>
         <OnboardModalProvider>{children}</OnboardModalProvider>
       </body>
     </html>
