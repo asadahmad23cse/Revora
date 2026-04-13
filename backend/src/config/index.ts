@@ -39,6 +39,10 @@ export const config = {
   whatsappPhoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID.trim(),
   whatsappApiVersion: env.WHATSAPP_API_VERSION.trim(),
 
+  /** Telegram bot integration (optional fallback channel). */
+  telegramBotToken: (env.TELEGRAM_BOT_TOKEN ?? "").trim(),
+  telegramWebhookSecret: (env.TELEGRAM_WEBHOOK_SECRET ?? "").trim(),
+
   /** BullMQ */
   queueMaxAttempts: env.QUEUE_MAX_ATTEMPTS,
   queueBackoffMs: env.QUEUE_BACKOFF_MS,

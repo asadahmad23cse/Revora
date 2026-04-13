@@ -101,6 +101,8 @@ Copy uses **“at risk”** language only — never confirmed lost revenue.
 | `DEFAULT_AOV_INR` | Per-order at-risk estimate (default `350`) |
 | `RESPONSE_THRESHOLD_SECONDS` | Late reply threshold (default `300` = 5 min) |
 | `DEFAULT_BUSINESS_PHONE` | Fallback owner line if payload omits it |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token (optional fallback channel) |
+| `TELEGRAM_WEBHOOK_SECRET` | Validates `x-telegram-bot-api-secret-token` on `/webhook/telegram` |
 | `DATABASE_SSL` | `true` to force TLS even without `sslmode=require` in URL |
 | `DATABASE_SSL_REJECT_UNAUTHORIZED` | Set `false` for some Supabase pooler chains |
 
@@ -148,6 +150,7 @@ curl -s -X POST http://localhost:8080/webhook \
 |--------|------|-------------|
 | `POST` | `/webhook` | Ingest Cloud/360dialog payloads or `{ simulate: true, ... }` (sync response with counts) |
 | `POST` | `/webhook/whatsapp` | Same as `/webhook` but **200 immediately**; ingest + `revora-message-ingest` run async (configure 360dialog callback here) |
+| `POST` | `/webhook/telegram` | Telegram bot webhook fallback; verifies `x-telegram-bot-api-secret-token` when `TELEGRAM_WEBHOOK_SECRET` is set, then maps updates into the same ingest pipeline |
 | `POST` | `/api/onboard` | Landing signup; optional body `source`: `instagram` \| `whatsapp` \| `manual` (default `manual`); creates/updates `users` + `leads` + funnel `config.lifecycle` |
 | `GET` | `/api/leads` | List acquisition leads (optional `ADMIN_API_KEY` → `X-Admin-Key`) |
 | `PATCH` | `/api/leads/:id` | Update lead `status` (`new`…`dropped`), `notes`, `intent_tag` |

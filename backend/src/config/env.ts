@@ -18,6 +18,8 @@ const EnvSchema = z.object({
   WHATSAPP_TOKEN: z.string().min(1),
   WHATSAPP_PHONE_NUMBER_ID: z.string().min(1),
   WEBHOOK_VERIFY_TOKEN: z.string().min(1),
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
   LOG_LEVEL: z.preprocess((v) => (v === undefined || v === "" ? "info" : v), z.string().min(1)),
   WHATSAPP_API_VERSION: z.preprocess(
     (v) => (v === undefined || v === "" ? "v18.0" : v),

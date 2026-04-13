@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import { config } from "../config";
 import { cloudInboundSchema } from "../models/webhook.dto";
+import { telegramUpdateSchema, type TelegramMessage, type TelegramUpdate } from "../models/telegram.dto";
+import { HttpError } from "../middlewares/httpError";
 import { WebhookService } from "../services/webhook.service";
 import { logger } from "../utils/logger";
 
@@ -56,6 +58,54 @@ function parseNumberHeader(value: string | undefined): number | undefined {
   return n;
 }
 
+function getTelegramSecretHeader(req: Request): string {
+  const fromTelegram = req.header("x-telegram-bot-api-secret-token");
+  return (fromTelegram ?? "").trim();
+}
+
+function verifyTelegramWebhookSecret(req: Request): void {
+  const expected = config.telegramWebhookSecret;
+  if (!expected) return;
+  const actual = getTelegramSecretHeader(req);
+  if (!actual || actual !== expected) {
+    throw new HttpError(401, "Invalid Telegram webhook secret", "invalid_telegram_secret");
+  }
+}
+
+function pickTelegramMessage(update: TelegramUpdate): TelegramMessage | null {
+  return update.message ?? update.edited_message ?? update.channel_post ?? update.edited_channel_post ?? null;
+}
+
+function deriveBusinessPhoneForTelegram(req: Request): string {
+  const headerPhone = (req.header("x-business-phone") ?? "").trim();
+  if (headerPhone) return headerPhone;
+  if (config.defaultBusinessPhone) return config.defaultBusinessPhone;
+  const botId = config.telegramBotToken.split(":")[0]?.trim();
+  if (botId && /^[0-9]+$/.test(botId)) {
+    return botId;
+  }
+  throw new HttpError(
+    400,
+    "Cannot determine business phone for Telegram webhook. Set DEFAULT_BUSINESS_PHONE or pass X-Business-Phone.",
+    "missing_business_phone",
+  );
+}
+
+function deriveCounterpartyPhoneForTelegram(msg: TelegramMessage): string {
+  const raw = msg.from?.id ?? msg.chat.id;
+  const absDigits = String(Math.abs(raw)).replace(/\D/g, "");
+  const padded = absDigits.padStart(9, "0");
+  return `99${padded}`;
+}
+
+function deriveTelegramMessageText(msg: TelegramMessage): string {
+  const text = msg.text?.trim();
+  if (text && text.length > 0) return text;
+  const caption = msg.caption?.trim();
+  if (caption && caption.length > 0) return caption;
+  return "[telegram message]";
+}
+
 export async function postWebhook(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const headerAov = parseNumberHeader(req.header("x-aov-inr"));
@@ -100,4 +150,64 @@ export async function postMetaWhatsAppWebhook(req: Request, res: Response): Prom
     logger.error({ requestId: req.id, err }, "Meta WhatsApp webhook ingest error (returning 200)");
   }
   res.status(200).json({ ok: true });
+}
+
+/**
+ * Telegram bot webhook (JSON):
+ * - verifies `x-telegram-bot-api-secret-token` when TELEGRAM_WEBHOOK_SECRET is configured
+ * - maps inbound updates into the existing ingest pipeline using simulate payload format
+ */
+export async function postTelegramWebhook(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    verifyTelegramWebhookSecret(req);
+    const parsed = telegramUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new HttpError(400, "Unsupported Telegram webhook payload", "invalid_payload", parsed.error.flatten());
+    }
+
+    const message = pickTelegramMessage(parsed.data);
+    if (!message) {
+      res.status(200).json({ ok: true, accepted: 0, skipped: 1, deduplicated: 0, reason: "no_message" });
+      return;
+    }
+    if (message.from?.is_bot) {
+      res.status(200).json({ ok: true, accepted: 0, skipped: 1, deduplicated: 0, reason: "bot_message" });
+      return;
+    }
+
+    const businessPhone = deriveBusinessPhoneForTelegram(req);
+    const counterpartyPhone = deriveCounterpartyPhoneForTelegram(message);
+    const dedupeId = `tg:${message.chat.id}:${message.message_id}`;
+    const text = deriveTelegramMessageText(message);
+    const timestamp = message.date !== undefined ? message.date * 1000 : Date.now();
+
+    const result = await WebhookService.ingestRawPayload({
+      body: {
+        simulate: true,
+        business_phone: businessPhone,
+        customer_phone: counterpartyPhone,
+        direction: "incoming",
+        text,
+        wa_message_id: dedupeId,
+        timestamp,
+      },
+      businessPhoneHeader: undefined,
+      headerFallback: {},
+    });
+
+    logger.info(
+      {
+        requestId: req.id,
+        dedupeId,
+        businessPhone,
+        counterpartyPhone,
+        ...result,
+      },
+      "Telegram webhook processed",
+    );
+
+    res.status(200).json({ ok: true, provider: "telegram", ...result });
+  } catch (e) {
+    next(e);
+  }
 }

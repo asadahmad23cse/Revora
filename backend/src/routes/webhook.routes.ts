@@ -5,6 +5,7 @@ import { webhookRateLimiter } from "../middlewares/webhookRateLimit";
 import {
   getMetaWhatsAppWebhookVerify,
   postMetaWhatsAppWebhook,
+  postTelegramWebhook,
   postWebhook,
 } from "../controllers/webhook.controller";
 
@@ -24,6 +25,13 @@ webhookRouter.post(
   express.json({ limit: "512kb" }),
   webhookRateLimiter,
   postMetaWhatsAppWebhook,
+);
+
+webhookRouter.post(
+  "/webhook/telegram",
+  express.json({ limit: "512kb" }),
+  webhookRateLimiter,
+  postTelegramWebhook,
 );
 
 webhookRouter.post("/webhook", ...webhookStack, postWebhook);
