@@ -6,6 +6,7 @@ import { WebhookService } from "../services/webhook.service";
 import { UserService } from "../services/user.service";
 import { ReportQueue } from "../queues/report.queue";
 import { tryDeliverPlainTextWhatsApp } from "../services/whatsapp";
+import { tryDeliverPlainTextTelegram } from "../services/telegram";
 import { getQueueMetricsSnapshot } from "../queues/metrics";
 import { pool } from "../db/pool";
 
@@ -133,6 +134,11 @@ const sendBody = z.object({
   message: z.string().min(1),
 });
 
+const sendTelegramBody = z.object({
+  chatId: z.string().min(1),
+  message: z.string().min(1),
+});
+
 /** Sends a real Cloud API text message (development helper). */
 devRouter.post("/send-whatsapp", async (req: Request, res: Response) => {
   const parsed = sendBody.safeParse(req.body);
@@ -146,6 +152,21 @@ devRouter.post("/send-whatsapp", async (req: Request, res: Response) => {
     return;
   }
   res.status(200).json({ error: "Meta API failed after retries" });
+});
+
+/** Sends a real Telegram text message (development helper). */
+devRouter.post("/send-telegram", async (req: Request, res: Response) => {
+  const parsed = sendTelegramBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+  const ok = await tryDeliverPlainTextTelegram(parsed.data.chatId, parsed.data.message);
+  if (ok) {
+    res.status(200).json({ sent: true });
+    return;
+  }
+  res.status(200).json({ error: "Telegram API failed after retries" });
 });
 
 /** Aggregated BullMQ job counts across Revora queues. */

@@ -1,6 +1,8 @@
 import { pool } from "../db/pool";
+import { config } from "../config";
 import { logger } from "../utils/logger";
 import { sendTextMessage } from "./whatsapp";
+import { sendTelegramTextMessage } from "./telegram";
 
 export type ReportWindow = "daily" | "14days";
 
@@ -43,8 +45,8 @@ export class ReportService {
     return r.rows[0]?.id ?? null;
   }
 
-  /** True when an outgoing WhatsApp with the 14d report marker already exists for today (Asia/Kolkata). */
-  private static async was14DayReportWhatsAppSentToday(userId: string): Promise<boolean> {
+  /** True when an outgoing report marker already exists for today (Asia/Kolkata). */
+  private static async was14DayReportSentToday(userId: string): Promise<boolean> {
     const r = await pool.query<{ one: number }>(
       `SELECT 1 AS one
        FROM messages
@@ -120,23 +122,13 @@ export class ReportService {
     };
   }
 
-  /** Sends the fixed-format 14-day Hindi report to the owner WhatsApp once per India-local day when possible. */
-  static async deliver14DayReportViaWhatsApp(result: ReportResult): Promise<void> {
+  /** Sends the fixed-format 14-day Hindi report via configured provider once per India-local day when possible. */
+  static async deliver14DayReport(result: ReportResult): Promise<void> {
     if (result.window !== "14days") return;
     try {
-      const user = await pool.query<{ phone_number: string }>(
-        `SELECT phone_number FROM users WHERE id = $1 LIMIT 1`,
-        [result.userId],
-      );
-      const phone = user.rows[0]?.phone_number?.trim();
-      if (!phone) {
-        logger.info({ userId: result.userId }, "14d WhatsApp report: no owner phone; skip");
-        return;
-      }
-
-      const already = await ReportService.was14DayReportWhatsAppSentToday(result.userId);
+      const already = await ReportService.was14DayReportSentToday(result.userId);
       if (already) {
-        logger.info({ userId: result.userId }, "14d WhatsApp report: already sent today; skip");
+        logger.info({ userId: result.userId }, "14d report: already sent today; skip");
         return;
       }
 
@@ -168,9 +160,28 @@ Reply karo: HAAN
 
 ━━━━━━━━━━━━━━━━━━━━━`;
 
+      if (config.messagingProvider === "telegram") {
+        const chatId = config.telegramOwnerChatId;
+        if (!chatId) {
+          logger.info({ userId: result.userId }, "14d Telegram report: TELEGRAM_OWNER_CHAT_ID not configured; skip");
+          return;
+        }
+        await sendTelegramTextMessage(chatId, text, result.userId);
+        return;
+      }
+
+      const user = await pool.query<{ phone_number: string }>(
+        `SELECT phone_number FROM users WHERE id = $1 LIMIT 1`,
+        [result.userId],
+      );
+      const phone = user.rows[0]?.phone_number?.trim();
+      if (!phone) {
+        logger.info({ userId: result.userId }, "14d WhatsApp report: no owner phone; skip");
+        return;
+      }
       await sendTextMessage(phone, text);
     } catch (e) {
-      logger.error({ err: e, userId: result.userId }, "14d WhatsApp report delivery failed");
+      logger.error({ err: e, userId: result.userId }, "14d report delivery failed");
     }
   }
 
@@ -253,10 +264,10 @@ Reply karo: HAAN
     };
 
     if (params.window === "14days") {
-      void ReportService.deliver14DayReportViaWhatsApp(reportResult).catch((err) => {
+      void ReportService.deliver14DayReport(reportResult).catch((err) => {
         logger.error(
           { err, userId: params.userId },
-          "14d WhatsApp report delivery rejected unexpectedly",
+          "14d report delivery rejected unexpectedly",
         );
       });
     }

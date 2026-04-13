@@ -103,6 +103,8 @@ Copy uses **“at risk”** language only — never confirmed lost revenue.
 | `DEFAULT_BUSINESS_PHONE` | Fallback owner line if payload omits it |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token (optional fallback channel) |
 | `TELEGRAM_WEBHOOK_SECRET` | Validates `x-telegram-bot-api-secret-token` on `/webhook/telegram` |
+| `TELEGRAM_OWNER_CHAT_ID` | Owner Telegram chat id for outbound report delivery when `MESSAGING_PROVIDER=telegram` |
+| `MESSAGING_PROVIDER` | Outbound provider for owner messages: `whatsapp` (default) or `telegram` |
 | `DATABASE_SSL` | `true` to force TLS even without `sslmode=require` in URL |
 | `DATABASE_SSL_REJECT_UNAUTHORIZED` | Set `false` for some Supabase pooler chains |
 

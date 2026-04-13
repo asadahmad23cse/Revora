@@ -42,6 +42,8 @@ export const config = {
   /** Telegram bot integration (optional fallback channel). */
   telegramBotToken: (env.TELEGRAM_BOT_TOKEN ?? "").trim(),
   telegramWebhookSecret: (env.TELEGRAM_WEBHOOK_SECRET ?? "").trim(),
+  telegramOwnerChatId: (env.TELEGRAM_OWNER_CHAT_ID ?? "").trim(),
+  messagingProvider: env.MESSAGING_PROVIDER,
 
   /** BullMQ */
   queueMaxAttempts: env.QUEUE_MAX_ATTEMPTS,

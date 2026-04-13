@@ -20,6 +20,11 @@ const EnvSchema = z.object({
   WEBHOOK_VERIFY_TOKEN: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
+  TELEGRAM_OWNER_CHAT_ID: z.string().optional(),
+  MESSAGING_PROVIDER: z.preprocess(
+    (v) => (v === undefined || v === "" ? "whatsapp" : String(v).toLowerCase()),
+    z.enum(["whatsapp", "telegram"]),
+  ),
   LOG_LEVEL: z.preprocess((v) => (v === undefined || v === "" ? "info" : v), z.string().min(1)),
   WHATSAPP_API_VERSION: z.preprocess(
     (v) => (v === undefined || v === "" ? "v18.0" : v),
