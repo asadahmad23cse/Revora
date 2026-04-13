@@ -6,7 +6,12 @@ import { WebhookService } from "../services/webhook.service";
 import { UserService } from "../services/user.service";
 import { ReportQueue } from "../queues/report.queue";
 import { tryDeliverPlainTextWhatsApp } from "../services/whatsapp";
-import { tryDeliverPlainTextTelegram } from "../services/telegram";
+import {
+  getTelegramBotInfo,
+  getTelegramWebhookInfo,
+  setTelegramWebhook,
+  tryDeliverPlainTextTelegram,
+} from "../services/telegram";
 import { getQueueMetricsSnapshot } from "../queues/metrics";
 import { pool } from "../db/pool";
 
@@ -139,6 +144,11 @@ const sendTelegramBody = z.object({
   message: z.string().min(1),
 });
 
+const setTelegramWebhookBody = z.object({
+  url: z.string().url(),
+  secretToken: z.string().min(1).optional(),
+});
+
 /** Sends a real Cloud API text message (development helper). */
 devRouter.post("/send-whatsapp", async (req: Request, res: Response) => {
   const parsed = sendBody.safeParse(req.body);
@@ -167,6 +177,44 @@ devRouter.post("/send-telegram", async (req: Request, res: Response) => {
     return;
   }
   res.status(200).json({ error: "Telegram API failed after retries" });
+});
+
+/** Sets Telegram webhook URL for the configured bot token (development helper). */
+devRouter.post("/telegram/set-webhook", async (req: Request, res: Response) => {
+  const parsed = setTelegramWebhookBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() });
+    return;
+  }
+  const ok = await setTelegramWebhook({
+    url: parsed.data.url,
+    secretToken: parsed.data.secretToken,
+  });
+  if (!ok) {
+    res.status(200).json({ error: "Telegram setWebhook failed after retries" });
+    return;
+  }
+  res.status(200).json({ ok: true });
+});
+
+/** Reads Telegram bot identity (development helper). */
+devRouter.get("/telegram/get-me", async (_req: Request, res: Response) => {
+  const result = await getTelegramBotInfo();
+  if (!result) {
+    res.status(200).json({ error: "Telegram getMe failed after retries" });
+    return;
+  }
+  res.status(200).json({ ok: true, result });
+});
+
+/** Reads Telegram webhook info (development helper). */
+devRouter.get("/telegram/webhook-info", async (_req: Request, res: Response) => {
+  const result = await getTelegramWebhookInfo();
+  if (!result) {
+    res.status(200).json({ error: "Telegram getWebhookInfo failed after retries" });
+    return;
+  }
+  res.status(200).json({ ok: true, result });
 });
 
 /** Aggregated BullMQ job counts across Revora queues. */

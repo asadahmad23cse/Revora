@@ -7,9 +7,7 @@ const RETRY_DELAYS_MS = [1000, 3000, 5000] as const;
 type TelegramSendResponse = {
   ok?: boolean;
   description?: string;
-  result?: {
-    message_id?: number;
-  };
+  result?: unknown;
 };
 
 function sleep(ms: number): Promise<void> {
@@ -40,6 +38,13 @@ async function postTelegram(method: string, body: Record<string, unknown>): Prom
     throw new Error(`Telegram API error: ${msg}`);
   }
   return json;
+}
+
+function responseMessageId(resp: TelegramSendResponse): number | undefined {
+  const result = resp.result;
+  if (!result || typeof result !== "object") return undefined;
+  const id = (result as { message_id?: unknown }).message_id;
+  return typeof id === "number" ? id : undefined;
 }
 
 async function withRetries<T>(label: string, action: () => Promise<T>): Promise<T | null> {
@@ -97,7 +102,7 @@ async function deliverPlainTextAndLog(chatId: string, body: string, userId?: str
     userId,
     chatId: chat,
     messageText: body,
-    telegramMessageId: response.result?.message_id,
+    telegramMessageId: responseMessageId(response),
   });
   return true;
 }
@@ -108,4 +113,30 @@ export async function sendTelegramTextMessage(chatId: string, body: string, user
 
 export async function tryDeliverPlainTextTelegram(chatId: string, body: string, userId?: string): Promise<boolean> {
   return deliverPlainTextAndLog(chatId, body, userId);
+}
+
+export async function getTelegramBotInfo(): Promise<unknown | null> {
+  const response = await withRetries("telegram.getMe", async () => postTelegram("getMe", {}));
+  return response?.result ?? null;
+}
+
+export async function getTelegramWebhookInfo(): Promise<unknown | null> {
+  const response = await withRetries("telegram.getWebhookInfo", async () =>
+    postTelegram("getWebhookInfo", {}),
+  );
+  return response?.result ?? null;
+}
+
+export async function setTelegramWebhook(params: {
+  url: string;
+  secretToken?: string;
+}): Promise<boolean> {
+  const payload: Record<string, unknown> = {
+    url: params.url,
+  };
+  const secret = params.secretToken?.trim();
+  if (secret) payload.secret_token = secret;
+  const response = await withRetries("telegram.setWebhook", async () => postTelegram("setWebhook", payload));
+  if (!response) return false;
+  return response.ok === true;
 }

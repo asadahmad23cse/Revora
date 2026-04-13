@@ -108,6 +108,18 @@ Copy uses **“at risk”** language only — never confirmed lost revenue.
 | `DATABASE_SSL` | `true` to force TLS even without `sslmode=require` in URL |
 | `DATABASE_SSL_REJECT_UNAUTHORIZED` | Set `false` for some Supabase pooler chains |
 
+### Telegram fallback quick setup
+
+1. Create bot via `@BotFather` and set `TELEGRAM_BOT_TOKEN`.
+2. Set `TELEGRAM_WEBHOOK_SECRET` to a long random value.
+3. Expose backend on HTTPS (ngrok / cloudflare tunnel).
+4. In development (`/dev/*` enabled), configure webhook:
+   - `POST /dev/telegram/set-webhook` with JSON `{ "url": "https://<public-host>/webhook/telegram", "secretToken": "<same-secret>" }`
+5. Validate integration:
+   - `GET /dev/telegram/get-me`
+   - `GET /dev/telegram/webhook-info`
+   - `POST /dev/send-telegram` with JSON `{ "chatId": "<telegram-chat-id>", "message": "test" }`
+
 ### Per-user JSON (`users.config`)
 
 ```sql
