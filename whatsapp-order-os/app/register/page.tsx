@@ -53,7 +53,7 @@ export default function RegisterPage() {
       saveAuth(data.token, data.businessId);
       router.replace("/admin");
     } catch {
-      setError("Could not reach the server. Is the API running?");
+      setError("We could not reach the account service. Please try again in a moment.");
     } finally {
       setLoading(false);
     }

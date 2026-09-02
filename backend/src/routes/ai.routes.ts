@@ -3,8 +3,10 @@ import Groq from "groq-sdk";
 import { z } from "zod";
 import { config } from "../config";
 import { logger } from "../utils/logger";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const aiRouter = Router();
+aiRouter.use(requireAuth);
 
 const generateBody = z.object({
   name: z.string().min(1),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch, getBusinessId } from "@/lib/auth";
+import { apiFetch } from "@/lib/auth";
 
 type SendMessageModalProps = {
   open: boolean;
@@ -36,11 +36,6 @@ export function SendMessageModal({ open, onClose, onSuccess }: SendMessageModalP
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const businessId = getBusinessId();
-    if (!businessId) {
-      setError("Not signed in.");
-      return;
-    }
     const text = message.trim();
     const p = phone.trim();
     if (!p || !text) {
@@ -49,12 +44,12 @@ export function SendMessageModal({ open, onClose, onSuccess }: SendMessageModalP
     }
     setSending(true);
     try {
-      const res = await apiFetch("/dev/simulate-message", {
+      const res = await apiFetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: p, text, businessId }),
+        body: JSON.stringify({ to: p, message: text }),
       });
-      const data = (await res.json()) as { error?: string; queued?: boolean };
+      const data = (await res.json()) as { error?: string; sent?: boolean };
       if (!res.ok) {
         setError(typeof data.error === "string" ? data.error : `Request failed (${res.status})`);
         return;
@@ -86,7 +81,7 @@ export function SendMessageModal({ open, onClose, onSuccess }: SendMessageModalP
         <h2 id="send-msg-title" className="text-lg font-semibold text-white">
           Send WhatsApp Message
         </h2>
-        <p className="mt-1 text-xs text-slate-400">Simulates an inbound customer message (dev API).</p>
+        <p className="mt-1 text-xs text-slate-400">Send a message through your connected messaging provider.</p>
 
         {error ? (
           <p className="glass-red mt-4 rounded-lg border border-red-500/40 px-3 py-2 text-sm text-red-300">{error}</p>

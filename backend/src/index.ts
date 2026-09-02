@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   const app = createApp();
   httpServer = createServer(app);
 
-  httpServer.listen(config.port, () => {
+  httpServer.listen(config.port, "0.0.0.0", () => {
     logger.info(
       { port: config.port, env: config.nodeEnv },
       `Revora API listening on port ${config.port}`,

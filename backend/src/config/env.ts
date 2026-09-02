@@ -11,13 +11,17 @@ function numDef(defaultVal: number): z.ZodType<number, z.ZodTypeDef, unknown> {
 }
 
 const EnvSchema = z.object({
-  NODE_ENV: z.string().min(1),
-  PORT: z.coerce.number().int().positive(),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().positive().default(8080),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
-  WHATSAPP_TOKEN: z.string().min(1),
-  WHATSAPP_PHONE_NUMBER_ID: z.string().min(1),
-  WEBHOOK_VERIFY_TOKEN: z.string().min(1),
+  WHATSAPP_TOKEN: z.string().optional(),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  WEBHOOK_VERIFY_TOKEN: z.string().optional(),
+  /** Comma-separated browser origins allowed to call the API directly. */
+  FRONTEND_ORIGINS: z.string().optional(),
+  /** Enable Express proxy awareness when deployed behind a trusted load balancer. */
+  TRUST_PROXY: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
   TELEGRAM_OWNER_CHAT_ID: z.string().optional(),
@@ -63,13 +67,44 @@ const EnvSchema = z.object({
   GROQ_API_KEY: z.string().optional(),
 
   /** HS256 secret for POST /api/auth/register + /api/auth/login tokens */
-  JWT_SECRET: z.preprocess(
-    (v) =>
-      v === undefined || v === ""
-        ? "revora-super-secret-key-change-in-prod"
-        : v,
-    z.string().min(1),
-  ),
+  JWT_SECRET: z.string().min(32).optional(),
+}).superRefine((value, ctx) => {
+  if (value.NODE_ENV !== "production") return;
+
+  const required = (key: string, valueToCheck: string | undefined, message = "is required in production") => {
+    if (!valueToCheck?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} ${message}` });
+    }
+  };
+
+  required("JWT_SECRET", value.JWT_SECRET, "must be at least 32 characters in production");
+  required("FRONTEND_ORIGINS", value.FRONTEND_ORIGINS);
+
+  if (value.WEBHOOK_SKIP_SIGNATURE_VERIFY === "true" || value.WEBHOOK_SKIP_SIGNATURE_VERIFY === "1") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["WEBHOOK_SKIP_SIGNATURE_VERIFY"],
+      message: "WEBHOOK_SKIP_SIGNATURE_VERIFY must be false in production",
+    });
+  }
+  if (value.WEBHOOK_ALLOW_SIMULATE_WITHOUT_SIGNATURE === "true" || value.WEBHOOK_ALLOW_SIMULATE_WITHOUT_SIGNATURE === "1") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["WEBHOOK_ALLOW_SIMULATE_WITHOUT_SIGNATURE"],
+      message: "WEBHOOK_ALLOW_SIMULATE_WITHOUT_SIGNATURE must be false in production",
+    });
+  }
+
+  if (value.MESSAGING_PROVIDER === "whatsapp") {
+    required("WHATSAPP_TOKEN", value.WHATSAPP_TOKEN);
+    required("WHATSAPP_PHONE_NUMBER_ID", value.WHATSAPP_PHONE_NUMBER_ID);
+    required("WEBHOOK_VERIFY_TOKEN", value.WEBHOOK_VERIFY_TOKEN);
+    required("WEBHOOK_APP_SECRET", value.WEBHOOK_APP_SECRET ?? value.DIALOG360_WEBHOOK_SECRET);
+  } else {
+    required("TELEGRAM_BOT_TOKEN", value.TELEGRAM_BOT_TOKEN);
+    required("TELEGRAM_WEBHOOK_SECRET", value.TELEGRAM_WEBHOOK_SECRET);
+    required("TELEGRAM_OWNER_CHAT_ID", value.TELEGRAM_OWNER_CHAT_ID);
+  }
 });
 
 /** Validates process.env at import; throws before the HTTP server or workers start. */

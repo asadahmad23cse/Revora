@@ -41,7 +41,7 @@ export default function LoginPage() {
       saveAuth(data.token, data.businessId);
       router.replace("/admin");
     } catch {
-      setError("Could not reach the server. Is the API running?");
+      setError("We could not reach the sign-in service. Please try again in a moment.");
     } finally {
       setLoading(false);
     }

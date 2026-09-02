@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOnboardModal } from "@/components/onboard/OnboardModal";
 
@@ -63,9 +64,9 @@ export default function Navbar() {
 
         {/* CTA */}
         <div className="hidden md:flex items-center gap-3">
-          <a href="#cta" className="text-sm text-slate-400 hover:text-white transition-colors px-4 py-2">
+          <Link href="/login" className="text-sm text-slate-400 hover:text-white transition-colors px-4 py-2">
             Sign in
-          </a>
+          </Link>
           <button
             type="button"
             onClick={openOnboardModal}
@@ -107,6 +108,13 @@ export default function Navbar() {
                   {l.label}
                 </a>
               ))}
+              <Link
+                href="/login"
+                onClick={() => setMobileOpen(false)}
+                className="text-sm text-slate-300 hover:text-white py-1"
+              >
+                Sign in
+              </Link>
               <button
                 type="button"
                 onClick={() => {

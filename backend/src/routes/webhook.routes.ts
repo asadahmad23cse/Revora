@@ -1,4 +1,4 @@
-import express, { Router, raw } from "express";
+import { Router, raw, json } from "express";
 import { verifyWebhookSignature } from "../middlewares/webhookSignature";
 import { captureRawJsonAndParse } from "../middlewares/webhookRawBody";
 import { webhookRateLimiter } from "../middlewares/webhookRateLimit";
@@ -22,14 +22,13 @@ webhookRouter.get("/webhook/whatsapp", getMetaWhatsAppWebhookVerify);
 
 webhookRouter.post(
   "/webhook/whatsapp",
-  express.json({ limit: "512kb" }),
-  webhookRateLimiter,
+  ...webhookStack,
   postMetaWhatsAppWebhook,
 );
 
 webhookRouter.post(
   "/webhook/telegram",
-  express.json({ limit: "512kb" }),
+  json({ limit: "512kb" }),
   webhookRateLimiter,
   postTelegramWebhook,
 );

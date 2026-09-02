@@ -3,7 +3,7 @@
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   phone_number VARCHAR(32) NOT NULL,
   display_name VARCHAR(255),
@@ -13,18 +13,18 @@ CREATE TABLE users (
   CONSTRAINT users_phone_number_key UNIQUE (phone_number)
 );
 
-CREATE INDEX idx_users_config_gin ON users USING gin (config jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS idx_users_config_gin ON users USING gin (config jsonb_path_ops);
 
-CREATE TABLE auth_users (
+CREATE TABLE IF NOT EXISTS auth_users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_auth_users_email ON auth_users (email);
+CREATE INDEX IF NOT EXISTS idx_auth_users_email ON auth_users (email);
 
-CREATE TABLE businesses (
+CREATE TABLE IF NOT EXISTS businesses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   owner_user_id UUID NOT NULL REFERENCES auth_users (id) ON DELETE CASCADE,
@@ -32,9 +32,9 @@ CREATE TABLE businesses (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_businesses_owner_user_id ON businesses (owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_businesses_owner_user_id ON businesses (owner_user_id);
 
-CREATE TABLE leads (
+CREATE TABLE IF NOT EXISTS leads (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   phone_number VARCHAR(32) NOT NULL,
@@ -55,13 +55,13 @@ CREATE TABLE leads (
   CONSTRAINT leads_phone_number_key UNIQUE (phone_number)
 );
 
-CREATE INDEX idx_leads_user_id ON leads (user_id);
-CREATE INDEX idx_leads_status ON leads (status);
-CREATE INDEX idx_leads_created_at ON leads (created_at DESC);
-CREATE INDEX idx_leads_next_followup ON leads (next_followup_at) WHERE next_followup_at IS NOT NULL;
-CREATE INDEX idx_leads_business_id ON leads (business_id);
+CREATE INDEX IF NOT EXISTS idx_leads_user_id ON leads (user_id);
+CREATE INDEX IF NOT EXISTS idx_leads_status ON leads (status);
+CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_next_followup ON leads (next_followup_at) WHERE next_followup_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_leads_business_id ON leads (business_id);
 
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   phone_number VARCHAR(32) NOT NULL,
@@ -73,11 +73,11 @@ CREATE TABLE messages (
   CONSTRAINT messages_wa_message_id_key UNIQUE (wa_message_id)
 );
 
-CREATE INDEX idx_messages_user_phone_time ON messages (user_id, phone_number, "timestamp" ASC);
-CREATE INDEX idx_messages_user_time ON messages (user_id, "timestamp" ASC);
-CREATE INDEX idx_messages_direction ON messages (user_id, direction);
+CREATE INDEX IF NOT EXISTS idx_messages_user_phone_time ON messages (user_id, phone_number, "timestamp" ASC);
+CREATE INDEX IF NOT EXISTS idx_messages_user_time ON messages (user_id, "timestamp" ASC);
+CREATE INDEX IF NOT EXISTS idx_messages_direction ON messages (user_id, direction);
 
-CREATE TABLE response_tracking (
+CREATE TABLE IF NOT EXISTS response_tracking (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   message_id UUID NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
   response_time_seconds INTEGER NOT NULL CHECK (response_time_seconds >= 0),
@@ -86,9 +86,9 @@ CREATE TABLE response_tracking (
   CONSTRAINT response_tracking_message_id_key UNIQUE (message_id)
 );
 
-CREATE INDEX idx_response_tracking_created ON response_tracking (created_at);
+CREATE INDEX IF NOT EXISTS idx_response_tracking_created ON response_tracking (created_at);
 
-CREATE TABLE risk_events (
+CREATE TABLE IF NOT EXISTS risk_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   message_id UUID NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
   risk_type VARCHAR(64) NOT NULL,
@@ -100,7 +100,7 @@ CREATE TABLE risk_events (
   CONSTRAINT risk_events_message_id_key UNIQUE (message_id)
 );
 
-CREATE INDEX idx_risk_events_created ON risk_events (created_at);
+CREATE INDEX IF NOT EXISTS idx_risk_events_created ON risk_events (created_at);
 
 COMMENT ON TABLE users IS 'Business / owner accounts (tenant), identified by WhatsApp business number.';
 COMMENT ON TABLE leads IS 'Inbound acquisition; one row per phone; linked after /api/onboard.';

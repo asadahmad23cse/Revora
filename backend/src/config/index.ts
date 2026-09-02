@@ -5,10 +5,19 @@ function envBool(raw: string | undefined, defaultVal: boolean): boolean {
   return raw === "1" || raw.toLowerCase() === "true";
 }
 
+function envOrigins(raw: string | undefined): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+}
+
 export const config = {
   nodeEnv: env.NODE_ENV,
   port: env.PORT,
   logLevel: env.LOG_LEVEL,
+  frontendOrigins: envOrigins(env.FRONTEND_ORIGINS),
+  trustProxy: envBool(env.TRUST_PROXY, env.NODE_ENV === "production"),
 
   databaseUrl: env.DATABASE_URL,
   databaseUseSsl: env.DATABASE_SSL === "true" || /sslmode=require/i.test(env.DATABASE_URL),
@@ -19,7 +28,7 @@ export const config = {
   defaultAovInr: env.DEFAULT_AOV_INR,
   responseThresholdSeconds: env.RESPONSE_THRESHOLD_SECONDS,
 
-  webhookVerifyToken: env.WEBHOOK_VERIFY_TOKEN.trim(),
+  webhookVerifyToken: (env.WEBHOOK_VERIFY_TOKEN ?? "").trim(),
   /** Meta / WhatsApp Cloud: App Secret — used for X-Hub-Signature-256 (360dialog uses same header) */
   webhookAppSecret: (env.WEBHOOK_APP_SECRET ?? env.DIALOG360_WEBHOOK_SECRET ?? "").trim(),
 
@@ -35,8 +44,8 @@ export const config = {
   defaultBusinessPhone: (env.DEFAULT_BUSINESS_PHONE ?? "").trim(),
 
   /** Meta WhatsApp Cloud API (Graph outbound) */
-  whatsappToken: env.WHATSAPP_TOKEN.trim(),
-  whatsappPhoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID.trim(),
+  whatsappToken: (env.WHATSAPP_TOKEN ?? "").trim(),
+  whatsappPhoneNumberId: (env.WHATSAPP_PHONE_NUMBER_ID ?? "").trim(),
   whatsappApiVersion: env.WHATSAPP_API_VERSION.trim(),
 
   /** Telegram bot integration (optional fallback channel). */
@@ -80,7 +89,7 @@ export const config = {
   groqApiKey: (env.GROQ_API_KEY ?? "").trim(),
 
   /** JWT signing (7d expiry for api/auth) */
-  jwtSecret: env.JWT_SECRET,
+  jwtSecret: env.JWT_SECRET ?? "revora-development-only-jwt-secret-change-me",
 } as const;
 
 export function isTestSimulateApiEnabled(): boolean {

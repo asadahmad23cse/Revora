@@ -86,7 +86,6 @@ function AdminDashboardInner() {
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [workerBanner, setWorkerBanner] = useState<string | null>(null);
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -103,8 +102,7 @@ function AdminDashboardInner() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const bid = getBusinessId();
-      if (!bid) {
+      if (!getBusinessId()) {
         if (alive) {
           setReportUnavailable(true);
           setReportLoading(false);
@@ -114,7 +112,7 @@ function AdminDashboardInner() {
       setReportLoading(true);
       setReportUnavailable(false);
       try {
-        const res = await apiFetch(`/reports/14days?userId=${encodeURIComponent(bid)}`);
+        const res = await apiFetch("/reports/14days");
         if (!alive) return;
         if (!res.ok) {
           setReportData(null);
@@ -151,7 +149,7 @@ function AdminDashboardInner() {
       const data: { leads?: LeadRow[] } = await res.json();
       setLeads(data.leads ?? []);
     } catch {
-      setError("Failed to load leads. Is the API running on :8080?");
+      setError("We could not load your leads. Please try again in a moment.");
     } finally {
       setLoading(false);
     }
@@ -176,32 +174,6 @@ function AdminDashboardInner() {
     router.push("/login");
   }
 
-  async function handleLoadDemo() {
-    setError(null);
-    try {
-      const res = await apiFetch("/dev/seed-demo", { method: "POST" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await loadLeads();
-    } catch {
-      setError("Demo seed failed (dev server + NODE_ENV=development required).");
-    }
-  }
-
-  async function handleRunFollowups() {
-    setWorkerBanner(null);
-    setError(null);
-    try {
-      const res = await apiFetch("/dev/run-worker", { method: "POST" });
-      const data: { processed?: number; leads?: { name: string; followup_count: number }[] } = await res.json();
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const n = data.processed ?? 0;
-      setWorkerBanner(`Processed ${n} follow-up(s).`);
-      await loadLeads();
-    } catch {
-      setError("Run follow-ups failed (API dev routes required).");
-    }
-  }
-
   const risky = reportData?.totalRiskyMessages ?? 0;
   const revenueInr = reportData?.totalEstimatedRevenueAtRiskInr ?? "0";
   const avgSec = reportData?.averageResponseTimeSeconds;
@@ -217,7 +189,7 @@ function AdminDashboardInner() {
         </h1>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <span className="glass-green w-fit rounded-full border border-emerald-500/40 px-3 py-1 text-xs font-medium text-emerald-300">
-            Demo Mode
+            Live
           </span>
           <button type="button" className="btn-ghost rounded-lg px-4 py-2 text-xs font-medium" onClick={handleLogout}>
             Logout
@@ -227,11 +199,6 @@ function AdminDashboardInner() {
 
       {error ? (
         <p className="glass-red mb-6 rounded-xl border border-red-500/30 px-4 py-3 text-sm text-red-200">{error}</p>
-      ) : null}
-      {workerBanner ? (
-        <p className="glass-green mb-6 rounded-xl border border-emerald-500/30 px-4 py-3 text-sm text-emerald-200">
-          {workerBanner}
-        </p>
       ) : null}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -286,12 +253,6 @@ function AdminDashboardInner() {
       </section>
 
       <div className="mb-10 flex flex-wrap gap-3">
-        <button type="button" className="btn-primary rounded-lg px-5 py-2.5 text-sm font-medium" onClick={() => void handleLoadDemo()}>
-          Load Demo Data
-        </button>
-        <button type="button" className="btn-ghost rounded-lg px-5 py-2.5 text-sm font-medium" onClick={() => void handleRunFollowups()}>
-          Run Follow-ups
-        </button>
         <button
           type="button"
           className="rounded-lg border border-[#00ff88]/50 bg-transparent px-5 py-2.5 text-sm font-medium text-[#00ff88] transition hover:bg-[#00ff88]/10"
@@ -339,7 +300,7 @@ function AdminDashboardInner() {
               ) : leads.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                    No leads yet. Load demo data or complete onboarding for this business.
+                    No leads yet. Complete onboarding or wait for your connected messaging channel to receive a customer message.
                   </td>
                 </tr>
               ) : (

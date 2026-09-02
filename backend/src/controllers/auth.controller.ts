@@ -62,6 +62,19 @@ export async function register(req: Request, res: Response, next: NextFunction):
       if (!businessId) {
         throw new HttpError(500, "Registration failed", "register_failed");
       }
+      await client.query(
+        `INSERT INTO users (phone_number, display_name, status, config)
+         VALUES (
+           $1, $2, 'onboarded',
+           jsonb_build_object(
+             'onboarding',
+             jsonb_build_object('connection_pending', true, 'onboarded_at', to_jsonb(now()))
+           )
+         )
+         ON CONFLICT (phone_number) DO UPDATE SET
+           display_name = COALESCE(users.display_name, EXCLUDED.display_name)`,
+        [normalizedPhone, business_name],
+      );
       await client.query("COMMIT");
       const token = signToken({ userId, businessId });
       res.status(201).json({ token, businessId, userId });

@@ -127,9 +127,9 @@ async function logOutgoing(params: {
 }
 
 /** Sends outbound text: Meta POST, optional DB log; resolves whether Graph returned success after retries. */
-async function deliverPlainTextAndLog(to: string, body: string): Promise<boolean> {
+async function deliverPlainTextAndLog(to: string, body: string, ownerUserId?: string): Promise<boolean> {
   const normalizedTo = UserService.normalizePhone(to);
-  const userId = await UserService.findUserIdByPhone(normalizedTo);
+  const userId = ownerUserId ?? (await UserService.findUserIdByPhone(normalizedTo));
   const payload: Record<string, unknown> = {
     messaging_product: "whatsapp",
     to: normalizedTo,
@@ -155,8 +155,8 @@ export async function sendTextMessage(to: string, body: string): Promise<void> {
 }
 
 /** Same as `sendTextMessage` but resolves false when Meta fails after retries (for dev tooling). */
-export async function tryDeliverPlainTextWhatsApp(to: string, body: string): Promise<boolean> {
-  return deliverPlainTextAndLog(to, body);
+export async function tryDeliverPlainTextWhatsApp(to: string, body: string, ownerUserId?: string): Promise<boolean> {
+  return deliverPlainTextAndLog(to, body, ownerUserId);
 }
 
 /** Sends an interactive button message (max 3 buttons) via Meta; logs outgoing row or swallows send failures after retries. */

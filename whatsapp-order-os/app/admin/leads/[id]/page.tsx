@@ -153,16 +153,16 @@ function AdminLeadDetailInner() {
     const optimistic: LeadMsg = {
       id: `temp-${Date.now()}`,
       content,
-      status: "sent (simulated)",
+      status: "sending",
       source: "manual",
       created_at: new Date().toISOString(),
     };
     setMessages((m) => [...m, optimistic]);
     try {
-      const res = await apiFetch("/dev/send-message", {
+      const res = await apiFetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lead_id: lead.id, content }),
+        body: JSON.stringify({ to: lead.phone_number, message: content }),
       });
       if (!res.ok) {
         setMessages((m) => m.filter((x) => x.id !== optimistic.id));
@@ -172,11 +172,11 @@ function AdminLeadDetailInner() {
           message:
             typeof errBody.error === "string"
               ? errBody.error
-              : "Send failed. Dev API must be running with NODE_ENV=development.",
+              : "Send failed. Please try again.",
         });
         return;
       }
-      setToast({ kind: "ok", message: "Message sent (simulated)" });
+      setToast({ kind: "ok", message: "Message sent" });
       await loadMessages();
     } catch {
       setMessages((m) => m.filter((x) => x.id !== optimistic.id));

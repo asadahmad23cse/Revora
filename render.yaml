@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: revora-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    preDeployCommand: npm run migrate:schema && npm run migrate
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: NODE_VERSION
+        value: 20.19.5
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: revora-postgres
+          property: connectionString
+      - key: DATABASE_SSL
+        value: "false"
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: revora-queue
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_ORIGINS
+        value: https://whatsapp-order-os.vercel.app
+      - key: TRUST_PROXY
+        value: "true"
+      - key: LOG_LEVEL
+        value: info
+      - key: MESSAGING_PROVIDER
+        value: whatsapp
+      - key: WEBHOOK_SKIP_SIGNATURE_VERIFY
+        value: "false"
+      - key: WEBHOOK_ALLOW_SIMULATE_WITHOUT_SIGNATURE
+        value: "false"
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: WEBHOOK_APP_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+  - type: keyvalue
+    name: revora-queue
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+databases:
+  - name: revora-postgres
+    databaseName: revora
+    plan: free

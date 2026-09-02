@@ -12,6 +12,7 @@ import { leadsRouter } from "./routes/leads.routes";
 import { aiRouter } from "./routes/ai.routes";
 import { devRouter } from "./routes/dev.routes";
 import { authRouter } from "./routes/auth.routes";
+import { messagesRouter } from "./routes/messages.routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import { logger } from "./utils/logger";
 import { requestIdMiddleware } from "./middlewares/requestId";
@@ -20,12 +21,16 @@ export function createApp(): express.Application {
   const app = express();
 
   app.disable("x-powered-by");
+  app.set("trust proxy", config.trustProxy);
   app.use(
     cors({
       origin:
         config.nodeEnv === "development"
-          ? ["http://localhost:3000", "http://127.0.0.1:3000"]
-          : "http://localhost:3000",
+          ? ["http://localhost:3000", "http://127.0.0.1:3000", ...config.frontendOrigins]
+          : config.frontendOrigins,
+      methods: ["GET", "HEAD", "POST", "PATCH", "OPTIONS"],
+      allowedHeaders: ["Authorization", "Content-Type", "X-Request-Id"],
+      maxAge: 86_400,
     }),
   );
   app.use(helmet());
@@ -53,6 +58,7 @@ export function createApp(): express.Application {
     app.use("/dev", devRouter);
   }
   app.use("/api/auth", authRouter);
+  app.use("/api", messagesRouter);
   app.use("/api", onboardApiRouter);
   app.use("/api", leadsRouter);
   app.use("/api", adminApiRouter);

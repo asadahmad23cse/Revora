@@ -9,7 +9,7 @@ const apiRouter = Router();
 
 apiRouter.use(globalRateLimiter);
 
-apiRouter.get("/reports/daily", getDailyReport);
+apiRouter.get("/reports/daily", requireAuth, getDailyReport);
 apiRouter.get("/reports/14days", requireAuth, get14DayReport);
 apiRouter.post("/test/simulate-inbound", postTestSimulateInbound);
 apiRouter.get("/health", getHealth);
