@@ -22,10 +22,9 @@ services:
       - key: DATABASE_SSL
         value: "false"
       - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: revora-queue
-          property: connectionString
+        # Redis Cloud connection URL; configure its eviction policy as noeviction.
+        # Set this secret in Render, never commit database credentials.
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_ORIGINS
@@ -50,12 +49,6 @@ services:
         value: PLACEHOLDER_NOT_REAL_META_APP_SECRET
       - key: ALLOW_TEST_SIMULATE_API
         value: "false"
-
-  - type: keyvalue
-    name: revora-queue
-    plan: free
-    maxmemoryPolicy: noeviction
-    ipAllowList: []
 
 databases:
   - name: revora-postgres

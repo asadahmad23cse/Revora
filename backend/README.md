@@ -28,6 +28,42 @@ Use **PostgreSQL** and **Redis** from the repo root without local installs:
 
 Use `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/revora` and `REDIS_URL=redis://localhost:6379` (see `.env.example`).
 
+## Render with Redis Cloud
+
+The root `render.yaml` deploys the API and Postgres on Render and accepts an
+external Redis Cloud `REDIS_URL`. It does not provision Render Key Value.
+
+1. Create a dedicated Redis Cloud database using **Try 30 MB for free**. Prefer
+   a region near the Render API and Postgres (Oregon for the current database).
+2. Set the Redis database eviction policy to **noeviction**, as required by
+   BullMQ. Use the connection URL supplied by Redis Cloud, including its username,
+   password, host, port, and TLS scheme when enabled. Store it only in Render's
+   `REDIS_URL` environment variable; never commit it.
+3. Deploy the API with root directory `backend`, build command
+   `npm ci --include=dev && npm run build`, and start command
+   `npm run migrate:schema && npm run migrate && npm start`. Free Render services
+   do not support a pre-deploy command. Use the existing Postgres internal URL
+   when provisioning manually, and place the API in the same Render region.
+4. Keep `FRONTEND_ORIGINS=https://whatsapp-order-os.vercel.app`. The Blueprint
+   generates `JWT_SECRET` and supplies clearly labelled Meta placeholders so
+   validation passes; real WhatsApp delivery requires real Meta credentials.
+   `ALLOW_TEST_SIMULATE_API` remains false.
+5. Warm the API with `GET /health` and require `database: true` and `redis: true`.
+   Check deployment logs and a BullMQ job round trip before connecting the frontend.
+6. Set Vercel Production `REVORA_BACKEND_URL` and `NEXT_PUBLIC_REVORA_API_URL`
+   to the verified API origin, then redeploy the frontend. Verify live onboarding,
+   account registration, and the authenticated `/admin` dashboard.
+
+The Redis Cloud free plan is for demos: 30 MB, 30 concurrent connections, and
+100 operations/second. Revora shares its main Redis connection, with one extra
+blocking connection for each of its five workers. Job payloads, retained failures,
+and the dead-letter queue still consume memory; monitor usage. Render free web
+services sleep when idle, which also pauses their workers. Free Render Postgres
+expires after 30 days.
+
+References: [Redis Cloud limits](https://redis.io/docs/latest/operate/rc/subscriptions/view-essentials-subscription/essentials-plan-details/),
+[BullMQ Redis configuration](https://docs.bullmq.io/guide/going-to-production).
+
 ## Production hardening
 
 - **Webhook HMAC** — verifies raw JSON body using `WEBHOOK_APP_SECRET` (Meta/WhatsApp style `X-Hub-Signature-256: sha256=<hex>`), optional `X-Revora-Signature`, or `webhook-signature: v1,<base64>` digest. **401** when invalid. Dev default `WEBHOOK_SKIP_SIGNATURE_VERIFY=true` — turn off in production.
