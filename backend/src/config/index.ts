@@ -59,6 +59,8 @@ export const config = {
   queueBackoffMs: env.QUEUE_BACKOFF_MS,
   queueRemoveOnComplete: env.QUEUE_REMOVE_ON_COMPLETE_COUNT,
   queueRemoveOnFail: env.QUEUE_REMOVE_ON_FAIL_COUNT,
+  queueDrainDelaySeconds: env.QUEUE_DRAIN_DELAY_SECONDS,
+  queueStalledIntervalMs: env.QUEUE_STALLED_INTERVAL_MS,
 
   conversationLockTtlSeconds: env.CONVERSATION_LOCK_TTL_SECONDS,
   idempotencyWaTtlSeconds: env.IDEMPOTENCY_WA_TTL_SECONDS,

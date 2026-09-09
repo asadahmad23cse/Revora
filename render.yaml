@@ -22,9 +22,14 @@ services:
       - key: DATABASE_SSL
         value: "false"
       - key: REDIS_URL
-        # Redis Cloud connection URL; configure its eviction policy as noeviction.
-        # Set this secret in Render, never commit database credentials.
+        # Upstash Redis TLS connection URL. Keep eviction disabled for BullMQ.
+        # Set this secret in Render; never commit database credentials.
         sync: false
+      # Reduce idle BullMQ commands to fit Upstash's free monthly command quota.
+      - key: QUEUE_DRAIN_DELAY_SECONDS
+        value: "60"
+      - key: QUEUE_STALLED_INTERVAL_MS
+        value: "300000"
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_ORIGINS

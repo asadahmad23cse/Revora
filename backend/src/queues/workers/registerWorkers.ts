@@ -20,8 +20,18 @@ import { ConversationLockService } from "../../services/conversationLock.service
 import { pool } from "../../db/pool";
 import { FunnelLifecycleService } from "../../services/funnelLifecycle.service";
 import { LeadService } from "../../services/lead.service";
+import { config } from "../../config";
 
 export const workers: Worker[] = [];
+
+function workerOptions(concurrency: number) {
+  return {
+    connection: redisConnection,
+    concurrency,
+    drainDelay: config.queueDrainDelaySeconds,
+    stalledInterval: config.queueStalledIntervalMs,
+  };
+}
 
 function attachDlq(worker: Worker, sourceQueueName: string): void {
   worker.on("failed", (job: Job | undefined, err: Error) => {
@@ -113,7 +123,7 @@ export function registerWorkers(): void {
         await ConversationLockService.release(lock);
       }
     },
-    { connection: redisConnection, concurrency: 32 },
+    workerOptions(32),
   );
   workers.push(ingest);
   attachDlq(ingest, QUEUE_MESSAGE_INGEST);
@@ -142,7 +152,7 @@ export function registerWorkers(): void {
         await ConversationLockService.release(lock);
       }
     },
-    { connection: redisConnection, concurrency: 24 },
+    workerOptions(24),
   );
   workers.push(risk);
   attachDlq(risk, QUEUE_RISK_EVALUATION);
@@ -152,7 +162,7 @@ export function registerWorkers(): void {
     async (job) => {
       await LeakService.finalizeRiskEvent(job.data.riskEventId, job.data.aovInr);
     },
-    { connection: redisConnection, concurrency: 8 },
+    workerOptions(8),
   );
   workers.push(leak);
   attachDlq(leak, QUEUE_LEAK_CALCULATION);
@@ -184,7 +194,7 @@ export function registerWorkers(): void {
         "Report job completed",
       );
     },
-    { connection: redisConnection, concurrency: 4 },
+    workerOptions(4),
   );
   workers.push(report);
   attachDlq(report, QUEUE_REPORT_GENERATION);
@@ -208,7 +218,7 @@ export function registerWorkers(): void {
         }
       }
     },
-    { connection: redisConnection, concurrency: 1 },
+    workerOptions(1),
   );
   workers.push(leadFollowup);
   attachDlq(leadFollowup, QUEUE_LEAD_FOLLOWUP);
