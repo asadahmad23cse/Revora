@@ -5,8 +5,8 @@ services:
     rootDir: backend
     plan: free
     buildCommand: npm ci --include=dev && npm run build
-    preDeployCommand: npm run migrate:schema && npm run migrate
-    startCommand: npm start
+    # Free web services do not support preDeployCommand.
+    startCommand: npm run migrate:schema && npm run migrate && npm start
     healthCheckPath: /health
     autoDeployTrigger: commit
     maxShutdownDelaySeconds: 60
@@ -41,15 +41,15 @@ services:
       - key: WEBHOOK_ALLOW_SIMULATE_WITHOUT_SIGNATURE
         value: "false"
       - key: WHATSAPP_TOKEN
-        sync: false
+        value: PLACEHOLDER_NOT_REAL_META_TOKEN
       - key: WHATSAPP_PHONE_NUMBER_ID
-        sync: false
+        value: PLACEHOLDER_NOT_REAL_META_PHONE_NUMBER_ID
       - key: WEBHOOK_VERIFY_TOKEN
-        sync: false
+        value: PLACEHOLDER_NOT_REAL_WEBHOOK_VERIFY_TOKEN
       - key: WEBHOOK_APP_SECRET
-        sync: false
-      - key: GROQ_API_KEY
-        sync: false
+        value: PLACEHOLDER_NOT_REAL_META_APP_SECRET
+      - key: ALLOW_TEST_SIMULATE_API
+        value: "false"
 
   - type: keyvalue
     name: revora-queue
