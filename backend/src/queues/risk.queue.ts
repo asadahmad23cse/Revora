@@ -27,7 +27,7 @@ export class RiskQueue {
   }
 
   static jobIdForIncoming(incomingMessageId: string): string {
-    return `risk-eval:${incomingMessageId}`;
+    return `risk-eval-${incomingMessageId}`;
   }
 
   static async cancelScheduledEvaluation(incomingMessageId: string): Promise<void> {

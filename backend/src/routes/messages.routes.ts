@@ -8,7 +8,6 @@ import { tryDeliverPlainTextTelegram } from "../services/telegram";
 import { tryDeliverPlainTextWhatsApp } from "../services/whatsapp";
 
 const messagesRouter = Router();
-messagesRouter.use(requireAuth);
 
 const sendMessageSchema = z.object({
   to: z.string().trim().min(3).max(64),
@@ -16,7 +15,7 @@ const sendMessageSchema = z.object({
 });
 
 /** Sends a tenant-owned outbound message through the configured production provider. */
-messagesRouter.post("/messages", async (req: Request, res: Response, next: NextFunction) => {
+messagesRouter.post("/messages", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const businessId = req.businessId;
     if (!businessId) {
