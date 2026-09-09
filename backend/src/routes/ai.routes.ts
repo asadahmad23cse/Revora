@@ -19,7 +19,7 @@ function fallbackMessage(name: string): string {
   return `Hi ${name}, bas check kar raha tha — kya aap abhi orders le rahe hain?`;
 }
 
-/** Uses Groq (llama3-8b-8192) to draft a short Hinglish follow-up, never surfacing hard errors to the client. */
+/** Uses Groq to draft a short Hinglish follow-up, never surfacing hard errors to the client. */
 aiRouter.post("/generate-message", async (req: Request, res: Response) => {
   const parsed = generateBody.safeParse(req.body);
   if (!parsed.success) {
@@ -47,7 +47,7 @@ Rules: max 2 sentences, friendly tone, no emojis, end with a question.`;
   try {
     const groq = new Groq({ apiKey: config.groqApiKey });
     const completion = await groq.chat.completions.create({
-      model: "llama3-8b-8192",
+      model: config.groqModel,
       messages: [{ role: "user", content: prompt }],
       max_tokens: 256,
     });

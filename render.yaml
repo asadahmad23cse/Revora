@@ -54,6 +54,8 @@ services:
         value: PLACEHOLDER_NOT_REAL_META_APP_SECRET
       - key: ALLOW_TEST_SIMULATE_API
         value: "false"
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
 
 databases:
   - name: revora-postgres

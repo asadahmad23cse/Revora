@@ -89,6 +89,7 @@ export const config = {
 
   /** Groq Cloud (optional; AI follow-up copy in /ai/generate-message) */
   groqApiKey: (env.GROQ_API_KEY ?? "").trim(),
+  groqModel: env.GROQ_MODEL.trim(),
 
   /** JWT signing (7d expiry for api/auth) */
   jwtSecret: env.JWT_SECRET ?? "revora-development-only-jwt-secret-change-me",

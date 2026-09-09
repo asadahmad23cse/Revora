@@ -67,6 +67,7 @@ const EnvSchema = z.object({
   ALLOW_TEST_SIMULATE_API: z.string().optional(),
 
   GROQ_API_KEY: z.string().optional(),
+  GROQ_MODEL: z.string().min(1).default("openai/gpt-oss-20b"),
 
   /** HS256 secret for POST /api/auth/register + /api/auth/login tokens */
   JWT_SECRET: z.string().min(32).optional(),
